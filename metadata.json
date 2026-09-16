@@ -1,0 +1,7 @@
+{
+  "name": "Inventory Tracker",
+  "description": "Inventory management system for small businesses with real-time stock tracking, audit logs, and low-stock email alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
