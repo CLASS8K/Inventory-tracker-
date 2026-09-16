@@ -1,0 +1,50 @@
+name: Build debug APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # This repo has no committed gradlew wrapper (see README "Known gaps"),
+      # so Gradle itself is provisioned here instead of using ./gradlew.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      # app/build.gradle.kts points the debug build type at a custom signing
+      # config backed by debug.keystore at the repo root, which is
+      # intentionally gitignored (never commit real signing keys). Generate
+      # a standard Android debug key with the exact credentials that config
+      # expects, so debug builds are reproducible in CI without any secrets.
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android -keypass android -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-tracker-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
