@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+app/build/
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystores (never commit real signing keys)
+*.jks
+*.keystore
+debug.keystore
+
+# Secrets (see build.gradle.kts secrets plugin config)
+.env
+!.env.example
+
+# OS
+.DS_Store
+
+# Roborazzi screenshot diffs
+**/build/outputs/roborazzi/
