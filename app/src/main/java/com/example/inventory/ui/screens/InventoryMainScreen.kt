@@ -1,76 +1,147 @@
 package com.example.inventory.ui.screens
 
-import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.inventory.data.InventoryItem
+import com.example.inventory.data.UserProfile
+import com.example.inventory.data.UserRole
+import com.example.inventory.ui.ALL_CATEGORIES
+import com.example.inventory.ui.InventoryUiState
 import com.example.inventory.ui.InventoryViewModel
+import com.example.inventory.ui.SortOption
+import com.example.inventory.util.formatMwk
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InventoryMainScreen(viewModel: InventoryViewModel) {
+fun InventoryMainScreen(
+    viewModel: InventoryViewModel,
+    onOpenAdminPanel: () -> Unit,
+    onSignOut: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var showAuditLog by remember { mutableStateOf(false) }
+    var showShareMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    val role = uiState.currentUser?.role ?: UserRole.STOCK_KEEPER
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Inventory") },
+                title = { Text("Nkhokwe") },
                 actions = {
+                    Box {
+                        IconButton(onClick = { showShareMenu = true }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share report")
+                        }
+                        DropdownMenu(expanded = showShareMenu, onDismissRequest = { showShareMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Share full inventory report") },
+                                onClick = {
+                                    showShareMenu = false
+                                    shareReport(context, buildReport(uiState.items, "Nkhokwe inventory report", uiState.totalValue))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Share low-stock report") },
+                                onClick = {
+                                    showShareMenu = false
+                                    shareReport(
+                                        context,
+                                        buildReport(uiState.lowStockItems, "Nkhokwe low-stock report", null),
+                                    )
+                                },
+                            )
+                        }
+                    }
                     IconButton(onClick = { showAuditLog = true }) {
                         Icon(Icons.Default.History, contentDescription = "Audit log")
+                    }
+                    if (uiState.isAdmin) {
+                        IconButton(onClick = onOpenAdminPanel) {
+                            Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin panel")
+                        }
+                    }
+                    IconButton(onClick = onSignOut) {
+                        Icon(Icons.Default.Logout, contentDescription = "Sign out")
                     }
                 },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { isAdding = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add item")
+            if (uiState.isAdmin) {
+                FloatingActionButton(onClick = { isAdding = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add item")
+                }
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            uiState.currentUser?.let { CurrentUserStrip(it) }
+
+            DashboardRow(uiState = uiState)
+
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = viewModel::onSearchQueryChange,
@@ -81,7 +152,39 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             )
 
-            if (uiState.lowStockItems.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            ) {
+                CategoryChips(
+                    categories = uiState.categories,
+                    selected = uiState.categoryFilter,
+                    onSelect = viewModel::onCategoryFilterChange,
+                    modifier = Modifier.weight(1f),
+                )
+                Box {
+                    IconButton(onClick = { showSortMenu = true }) {
+                        Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                    }
+                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        SortOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                onClick = {
+                                    showSortMenu = false
+                                    viewModel.onSortOptionChange(option)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = uiState.lowStockItems.isNotEmpty(),
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
                 LowStockBanner(items = uiState.lowStockItems)
             }
 
@@ -95,7 +198,12 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(filtered, key = { it.id }) { item ->
-                        InventoryItemRow(item = item, onClick = { editingItem = item })
+                        InventoryItemRow(
+                            item = item,
+                            modifier = Modifier.animateItem(),
+                            onClick = { editingItem = item },
+                            onAdjust = { delta -> viewModel.adjustQuantity(item, delta) },
+                        )
                     }
                 }
             }
@@ -105,6 +213,7 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
     if (isAdding) {
         ItemEditorDialog(
             item = null,
+            role = role,
             onDismiss = { isAdding = false },
             onSave = { name, sku, category, quantity, threshold, price ->
                 viewModel.addItem(name, sku, category, quantity, threshold, price)
@@ -117,6 +226,7 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
     editingItem?.let { item ->
         ItemEditorDialog(
             item = item,
+            role = role,
             onDismiss = { editingItem = null },
             onSave = { name, sku, category, quantity, threshold, price ->
                 viewModel.updateItem(
@@ -133,9 +243,13 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
                 )
                 editingItem = null
             },
-            onDelete = {
-                viewModel.deleteItem(item)
-                editingItem = null
+            onDelete = if (role == UserRole.ADMIN) {
+                {
+                    viewModel.deleteItem(item)
+                    editingItem = null
+                }
+            } else {
+                null
             },
         )
     }
@@ -146,8 +260,96 @@ fun InventoryMainScreen(viewModel: InventoryViewModel) {
 }
 
 @Composable
+private fun CurrentUserStrip(user: UserProfile) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(text = user.avatarEmoji, style = MaterialTheme.typography.titleLarge)
+        Column(modifier = Modifier.padding(start = 8.dp)) {
+            Text(text = "Welcome back, ${user.name}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            RoleBadge(role = user.role)
+        }
+    }
+}
+
+@Composable
+private fun DashboardRow(uiState: InventoryUiState) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    AnimatedVisibility(visible = visible, enter = fadeIn(tween(400)) + expandVertically()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            MetricCard(
+                label = "Total Value",
+                value = formatMwk(uiState.totalValue),
+                modifier = Modifier.weight(1.3f),
+            )
+            MetricCard(
+                label = "Units",
+                value = uiState.totalUnits.toString(),
+                modifier = Modifier.weight(1f),
+            )
+            MetricCard(
+                label = "Low Stock",
+                value = uiState.lowStockItems.size.toString(),
+                modifier = Modifier.weight(1f),
+                emphasize = uiState.lowStockItems.isNotEmpty(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, emphasize: Boolean = false) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = if (emphasize) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryChips(
+    categories: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier) {
+        items(categories) { category ->
+            FilterChip(
+                selected = category == selected,
+                onClick = { onSelect(category) },
+                label = { Text(if (category == ALL_CATEGORIES) "All Items" else category) },
+            )
+        }
+    }
+}
+
+@Composable
 private fun LowStockBanner(items: List<InventoryItem>) {
-    val context = LocalContext.current
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         modifier = Modifier
@@ -170,34 +372,33 @@ private fun LowStockBanner(items: List<InventoryItem>) {
                     .padding(start = 8.dp)
                     .weight(1f),
             )
-            IconButton(onClick = { sendLowStockEmail(context, items) }) {
-                Icon(
-                    Icons.Default.Email,
-                    contentDescription = "Email low stock alert",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
         }
     }
 }
 
-private fun sendLowStockEmail(context: android.content.Context, items: List<InventoryItem>) {
-    val body = buildString {
-        appendLine("The following items are low on stock:")
-        appendLine()
-        for (item in items) {
-            appendLine("- ${item.name} (${item.sku}): ${item.quantity} left, threshold ${item.lowStockThreshold}")
-        }
+private fun buildReport(items: List<InventoryItem>, title: String, totalValue: Double?): String = buildString {
+    appendLine(title)
+    appendLine()
+    if (items.isEmpty()) {
+        appendLine("No items to report.")
     }
-    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
-        putExtra(Intent.EXTRA_SUBJECT, "Low stock alert")
+    for (item in items) {
+        appendLine("- ${item.name} (${item.sku}) · ${item.category}")
+        appendLine("  Qty: ${item.quantity} · Unit: ${formatMwk(item.unitPrice)} · Total: ${formatMwk(item.quantity * item.unitPrice)}")
+    }
+    if (totalValue != null) {
+        appendLine()
+        appendLine("Total inventory value: ${formatMwk(totalValue)}")
+    }
+}
+
+private fun shareReport(context: Context, body: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "Nkhokwe inventory report")
         putExtra(Intent.EXTRA_TEXT, body)
     }
-    try {
-        context.startActivity(intent)
-    } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, "No email app found", Toast.LENGTH_SHORT).show()
-    }
+    context.startActivity(Intent.createChooser(intent, "Share report"))
 }
 
 @Composable
@@ -211,8 +412,31 @@ private fun EmptyState(hasSearch: Boolean) {
 }
 
 @Composable
-private fun InventoryItemRow(item: InventoryItem, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+private fun StatusBadge(item: InventoryItem) {
+    val (label, color) = when {
+        item.quantity == 0 -> "Out of Stock" to MaterialTheme.colorScheme.error
+        item.isLowStock -> "Low Stock" to Color(0xFFB8790A)
+        else -> "In Stock" to Color(0xFF2E7D32)
+    }
+    Surface(color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(50)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
+    }
+}
+
+@Composable
+private fun InventoryItemRow(
+    item: InventoryItem,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    onAdjust: (Int) -> Unit,
+) {
+    Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -227,18 +451,24 @@ private fun InventoryItemRow(item: InventoryItem, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.width(4.dp))
+                StatusBadge(item)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "${item.quantity} in stock",
-                    color = if (item.isLowStock) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = if (item.isLowStock) FontWeight.Bold else FontWeight.Normal,
-                )
-                Text(
-                    text = "$%.2f/unit".format(item.unitPrice),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { onAdjust(-1) }, enabled = item.quantity > 0) {
+                    Icon(Icons.Default.Remove, contentDescription = "Decrease quantity")
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "${item.quantity}", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = formatMwk(item.unitPrice),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { onAdjust(1) }) {
+                    Icon(Icons.Default.Add, contentDescription = "Increase quantity")
+                }
             }
         }
     }

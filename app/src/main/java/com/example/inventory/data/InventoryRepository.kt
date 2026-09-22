@@ -14,27 +14,31 @@ class InventoryRepository @Inject constructor(
 
     suspend fun getItem(id: Long): InventoryItem? = inventoryDao.getById(id)
 
-    suspend fun addItem(item: InventoryItem) {
+    suspend fun addItem(item: InventoryItem, actorName: String) {
         inventoryDao.upsert(item)
-        logAction(item.name, "Created", "Added with quantity ${item.quantity}")
+        logAction(item.name, "Created", "Added with quantity ${item.quantity}", actorName)
     }
 
-    suspend fun updateItem(previous: InventoryItem, updated: InventoryItem) {
+    suspend fun updateItem(previous: InventoryItem, updated: InventoryItem, actorName: String) {
         inventoryDao.update(updated)
         val detail = if (previous.quantity != updated.quantity) {
-            "Quantity changed from ${previous.quantity} to ${updated.quantity}"
+            val delta = updated.quantity - previous.quantity
+            val sign = if (delta > 0) "+" else ""
+            "Quantity changed from ${previous.quantity} to ${updated.quantity} ($sign$delta)"
         } else {
             "Details updated"
         }
-        logAction(updated.name, "Updated", detail)
+        logAction(updated.name, "Updated", detail, actorName)
     }
 
-    suspend fun deleteItem(item: InventoryItem) {
+    suspend fun deleteItem(item: InventoryItem, actorName: String) {
         inventoryDao.delete(item)
-        logAction(item.name, "Deleted", "Removed from inventory")
+        logAction(item.name, "Deleted", "Removed from inventory", actorName)
     }
 
-    private suspend fun logAction(itemName: String, action: String, detail: String) {
-        auditLogDao.insert(AuditLogEntry(itemName = itemName, action = action, detail = detail))
+    private suspend fun logAction(itemName: String, action: String, detail: String, actorName: String) {
+        auditLogDao.insert(
+            AuditLogEntry(itemName = itemName, action = action, detail = detail, actorName = actorName),
+        )
     }
 }

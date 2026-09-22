@@ -4,13 +4,6 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.SENDTO" />
-            <data android:scheme="mailto" />
-        </intent>
-    </queries>
-
     <application
         android:name=".inventory.InventoryApplication"
         android:allowBackup="true"

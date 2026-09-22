@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,10 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.inventory.data.InventoryItem
+import com.example.inventory.data.UserRole
 
 @Composable
 fun ItemEditorDialog(
     item: InventoryItem?,
+    role: UserRole,
     onDismiss: () -> Unit,
     onSave: (name: String, sku: String, category: String, quantity: Int, lowStockThreshold: Int, unitPrice: Double) -> Unit,
     onDelete: (() -> Unit)?,
@@ -34,6 +37,10 @@ fun ItemEditorDialog(
     var threshold by remember { mutableStateOf(item?.lowStockThreshold?.toString().orEmpty()) }
     var price by remember { mutableStateOf(item?.unitPrice?.toString().orEmpty()) }
 
+    // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
+    val canEditConfig = role == UserRole.ADMIN
+    val canDelete = role == UserRole.ADMIN && onDelete != null
+
     val isValid = name.isNotBlank() &&
         quantity.toIntOrNull() != null &&
         threshold.toIntOrNull() != null &&
@@ -41,7 +48,7 @@ fun ItemEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (item == null) "Add item" else "Edit item") },
+        title = { Text(if (item == null) "Add item" else if (canEditConfig) "Edit item" else "Restock item") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
@@ -49,6 +56,7 @@ fun ItemEditorDialog(
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     singleLine = true,
+                    enabled = canEditConfig,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp),
@@ -58,6 +66,7 @@ fun ItemEditorDialog(
                     onValueChange = { sku = it },
                     label = { Text("SKU") },
                     singleLine = true,
+                    enabled = canEditConfig,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
@@ -67,6 +76,7 @@ fun ItemEditorDialog(
                     onValueChange = { category = it },
                     label = { Text("Category") },
                     singleLine = true,
+                    enabled = canEditConfig,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
@@ -86,6 +96,7 @@ fun ItemEditorDialog(
                     onValueChange = { input -> threshold = input.filter { it.isDigit() } },
                     label = { Text("Low stock threshold") },
                     singleLine = true,
+                    enabled = canEditConfig,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -94,15 +105,25 @@ fun ItemEditorDialog(
                 OutlinedTextField(
                     value = price,
                     onValueChange = { input -> price = input.filter { it.isDigit() || it == '.' } },
-                    label = { Text("Unit price") },
+                    label = { Text("Unit Price (MWK)") },
                     singleLine = true,
+                    enabled = canEditConfig,
+                    leadingIcon = { Text("MWK") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                 )
-                if (onDelete != null) {
-                    TextButton(onClick = onDelete, modifier = Modifier.padding(top = 12.dp)) {
+                if (!canEditConfig) {
+                    Text(
+                        text = "Only Admins can change item details, pricing, or thresholds.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+                if (canDelete) {
+                    TextButton(onClick = onDelete!!, modifier = Modifier.padding(top = 12.dp)) {
                         Text("Delete item")
                     }
                 }

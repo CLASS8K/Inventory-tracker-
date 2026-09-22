@@ -10,5 +10,6 @@ data class AuditLogEntry(
     /** One of "Created", "Updated", "Deleted". */
     val action: String,
     val detail: String,
+    val actorName: String,
     val timestamp: Long = System.currentTimeMillis(),
 )
