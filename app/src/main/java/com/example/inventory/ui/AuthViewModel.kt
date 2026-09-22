@@ -1,7 +1,9 @@
 package com.example.inventory.ui
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.inventory.data.BackupManager
 import com.example.inventory.data.SessionManager
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRepository
@@ -28,6 +30,7 @@ data class AuthUiState(
 class AuthViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val sessionManager: SessionManager,
+    private val backupManager: BackupManager,
 ) : ViewModel() {
 
     val uiState: StateFlow<AuthUiState> = combine(
@@ -79,6 +82,28 @@ class AuthViewModel @Inject constructor(
             } else {
                 onResult(false)
             }
+        }
+    }
+
+    fun resetPin(user: UserProfile, newPin: String, onResult: () -> Unit) {
+        viewModelScope.launch {
+            val updated = userRepository.resetPin(user, newPin)
+            sessionManager.updateCurrentUser(updated)
+            onResult()
+        }
+    }
+
+    fun exportBackup(destination: Uri, onResult: (success: Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = runCatching { backupManager.exportTo(destination) }.isSuccess
+            onResult(success)
+        }
+    }
+
+    fun importBackup(source: Uri, onResult: (success: Boolean) -> Unit) {
+        viewModelScope.launch {
+            val success = runCatching { backupManager.importFrom(source) }.isSuccess
+            onResult(success)
         }
     }
 

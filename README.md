@@ -29,7 +29,7 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 
 - **Gamified sign-in** — pick a profile card and unlock it with a 4-digit PIN; the first account created becomes the admin
 - **Role-based access** — 👑 Admins have full control (pricing, thresholds, item deletion, user management); 📦 Stock Keepers can restock existing items and earn XP, but can't touch pricing/config or delete anything
-- **Admin Panel** — create/remove users and see a restocker leaderboard ranked by XP
+- **Admin Panel** — create/remove users, reset a user's PIN without losing their XP/level, see a restocker leaderboard ranked by XP, and back up or restore the entire local database as a file
 - **Dashboard** — Total Value (MWK), total units, and low-stock count, with animated entrance
 - **Inventory list** — search by name, SKU, or category; category filter chips; sort by name, quantity, price, or recently updated; colour-coded In Stock / Low Stock / Out of Stock badges
 - **Quick +/- stock adjustments** — one tap to restock or draw down an item directly from its card
@@ -56,6 +56,7 @@ app/src/main/java/com/example/
       UserRepository.kt             User CRUD, PIN hashing (salted SHA-256), XP awards
       SessionManager.kt             In-memory signed-in user for the process
       PinHasher.kt                  Salted SHA-256 PIN hashing
+      BackupManager.kt              Exports/restores the on-device Room database as a file
     di/
       DatabaseModule.kt            Hilt module providing the Room database + DAOs
     ui/
@@ -78,7 +79,8 @@ app/src/main/java/com/example/
 - No pre-Android-12 (API < 26) launcher icon fallback — only the adaptive icon variant exists, since generating binary PNGs wasn't practical here. Fine for essentially all real devices at this point, but worth knowing.
 - No Gradle wrapper binaries (`gradlew`/`gradlew.bat`/`gradle-wrapper.jar`) — couldn't generate them in the sandbox this was built in (no network access to Google's Maven repo). Android Studio will offer to regenerate the wrapper automatically on first open; the CI workflow provisions Gradle directly instead of relying on the wrapper.
 - Retrofit/Moshi/Firebase AI dependencies are present but unused — they were already declared before this change, presumably for future AI-assisted features.
-- The CI workflow and this whole rebuild were assembled without ever being able to run a real Gradle build (same network restriction) — if `compileSdk 36` isn't available on GitHub's hosted runners yet, the first CI run may need an explicit SDK platform install step added to `build-apk.yml`. Check the Actions log if the build fails there.
+- Most of this was written without ever being able to run a real Gradle build locally (same network restriction — no Android SDK reachable in that sandbox). It's since been confirmed to compile via the `build-apk.yml` CI run on [#2](https://github.com/CLASS8K/Inventory-tracker-/pull/2), but any future changes made the same way should get the same CI confirmation before being called done.
+- Backup files exported from the Admin Panel are a raw, unencrypted copy of the SQLite database — PINs inside are salted-hashed (not plaintext), but item data, prices, and names are not. Treat a backup file with the same care as the data it contains; it isn't meant to leave the business.
 - Fraunces is loaded as a downloadable Google Font at runtime (via Google Play services), not bundled into the APK. On a device without Play services, or offline on first launch, text falls back to the system font until it downloads. This is the same rebuild-without-a-real-build caveat above — the `font_certs.xml` cert hashes are Google's well-known, unchanging downloadable-fonts certs (copied from `android/compose-samples`), not something specific to this app.
 - The Room schema bumped to v2 to add the `user_profiles` table and an `actorName` column on `audit_log`. There's no migration path — `fallbackToDestructiveMigration` wipes local data on upgrade. Fine pre-release; revisit before a real release with user data on device.
 - PINs are 4 digits, hashed with a per-user salted SHA-256 (not bcrypt/Argon2) and stored locally — appropriate for a shared-device staff gate, not a substitute for real authentication if this app ever handles more sensitive data.

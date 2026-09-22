@@ -39,6 +39,13 @@ class UserRepository @Inject constructor(
         return updated
     }
 
+    suspend fun resetPin(user: UserProfile, newPin: String): UserProfile {
+        val salt = PinHasher.generateSalt()
+        val updated = user.copy(pinSalt = salt, pinHash = PinHasher.hash(newPin, salt))
+        userDao.update(updated)
+        return updated
+    }
+
     /** Admins may not delete themselves out of the last admin seat. */
     suspend fun canDeleteUser(user: UserProfile): Boolean {
         if (user.role != UserRole.ADMIN) return true
