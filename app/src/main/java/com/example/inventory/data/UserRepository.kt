@@ -4,6 +4,12 @@ import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+sealed interface PinAuthResult {
+    data object Success : PinAuthResult
+    data object InvalidPin : PinAuthResult
+    data class Locked(val retryAfterMillis: Long) : PinAuthResult
+}
+
 @Singleton
 class UserRepository @Inject constructor(
     private val userDao: UserDao,
@@ -30,8 +36,34 @@ class UserRepository @Inject constructor(
         return profile.copy(id = id)
     }
 
-    fun authenticate(user: UserProfile, pin: String): Boolean =
-        PinHasher.hash(pin, user.pinSalt) == user.pinHash
+    /**
+     * Re-reads the user's row before checking, so lockout state can't be bypassed with a stale
+     * in-memory [UserProfile] (e.g. from a list snapshot taken before an earlier failed attempt).
+     */
+    suspend fun authenticate(user: UserProfile, pin: String): PinAuthResult {
+        val now = System.currentTimeMillis()
+        val current = userDao.getById(user.id) ?: user
+        if (current.isLockedAt(now)) {
+            return PinAuthResult.Locked(current.lockedUntilMillis - now)
+        }
+
+        val matches = PinHasher.hash(pin, current.pinSalt) == current.pinHash
+        if (matches) {
+            if (current.failedPinAttempts != 0) {
+                userDao.update(current.copy(failedPinAttempts = 0, lockedUntilMillis = 0))
+            }
+            return PinAuthResult.Success
+        }
+
+        val attempts = current.failedPinAttempts + 1
+        val lockedUntil = if (attempts >= UserProfile.MAX_PIN_ATTEMPTS) {
+            now + UserProfile.LOCKOUT_DURATION_MILLIS
+        } else {
+            0L
+        }
+        userDao.update(current.copy(failedPinAttempts = attempts, lockedUntilMillis = lockedUntil))
+        return if (lockedUntil > 0) PinAuthResult.Locked(lockedUntil - now) else PinAuthResult.InvalidPin
+    }
 
     suspend fun awardXp(user: UserProfile, amount: Int): UserProfile {
         val updated = user.copy(xp = user.xp + amount)
@@ -41,7 +73,12 @@ class UserRepository @Inject constructor(
 
     suspend fun resetPin(user: UserProfile, newPin: String): UserProfile {
         val salt = PinHasher.generateSalt()
-        val updated = user.copy(pinSalt = salt, pinHash = PinHasher.hash(newPin, salt))
+        val updated = user.copy(
+            pinSalt = salt,
+            pinHash = PinHasher.hash(newPin, salt),
+            failedPinAttempts = 0,
+            lockedUntilMillis = 0,
+        )
         userDao.update(updated)
         return updated
     }

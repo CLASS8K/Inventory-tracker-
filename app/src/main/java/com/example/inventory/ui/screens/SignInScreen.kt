@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.inventory.data.PinAuthResult
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRole
 import com.example.inventory.ui.AuthViewModel
@@ -64,7 +65,7 @@ fun SignInScreen(viewModel: AuthViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var pendingSignIn by remember { mutableStateOf<UserProfile?>(null) }
-    var signInError by remember { mutableStateOf(false) }
+    var authResult by remember { mutableStateOf<PinAuthResult?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
 
     var visible by remember { mutableStateOf(false) }
@@ -118,7 +119,7 @@ fun SignInScreen(viewModel: AuthViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         items(uiState.users, key = { it.id }) { user ->
-                            ProfileCard(user = user, onClick = { pendingSignIn = user; signInError = false })
+                            ProfileCard(user = user, onClick = { pendingSignIn = user; authResult = null })
                         }
                         item {
                             AddProfileCard(onClick = { showCreateDialog = true })
@@ -132,14 +133,14 @@ fun SignInScreen(viewModel: AuthViewModel) {
     pendingSignIn?.let { user ->
         PinEntryDialog(
             user = user,
-            isError = signInError,
+            result = authResult,
             onDismiss = { pendingSignIn = null },
             onSubmit = { pin ->
-                viewModel.signIn(user, pin) { success ->
-                    if (success) {
+                viewModel.signIn(user, pin) { result ->
+                    if (result is PinAuthResult.Success) {
                         pendingSignIn = null
                     } else {
-                        signInError = true
+                        authResult = result
                     }
                 }
             },
@@ -259,11 +260,12 @@ fun RoleBadge(role: UserRole) {
 @Composable
 private fun PinEntryDialog(
     user: UserProfile,
-    isError: Boolean,
+    result: PinAuthResult?,
     onDismiss: () -> Unit,
     onSubmit: (String) -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
+    val isLocked = result is PinAuthResult.Locked
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -275,16 +277,25 @@ private fun PinEntryDialog(
                     onValueChange = { input -> if (input.length <= 4) pin = input.filter { it.isDigit() } },
                     label = { Text("4-digit PIN") },
                     singleLine = true,
-                    isError = isError,
+                    isError = result != null,
+                    enabled = !isLocked,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 4.dp),
                 )
-                AnimatedVisibility(visible = isError) {
+                AnimatedVisibility(visible = result != null) {
+                    val message = when (result) {
+                        is PinAuthResult.Locked -> {
+                            val seconds = (result.retryAfterMillis / 1000).coerceAtLeast(1)
+                            "Too many wrong attempts. Try again in ${seconds}s."
+                        }
+                        PinAuthResult.InvalidPin -> "Incorrect PIN, try again."
+                        PinAuthResult.Success, null -> ""
+                    }
                     Text(
-                        text = "Incorrect PIN, try again.",
+                        text = message,
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 8.dp),
@@ -293,7 +304,7 @@ private fun PinEntryDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = pin.length == 4, onClick = { onSubmit(pin) }) { Text("Unlock") }
+            TextButton(enabled = pin.length == 4 && !isLocked, onClick = { onSubmit(pin) }) { Text("Unlock") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

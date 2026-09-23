@@ -12,6 +12,9 @@ interface UserDao {
     @Query("SELECT * FROM user_profiles ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<UserProfile>>
 
+    @Query("SELECT * FROM user_profiles WHERE id = :id")
+    suspend fun getById(id: Long): UserProfile?
+
     @Query("SELECT COUNT(*) FROM user_profiles")
     suspend fun count(): Int
 

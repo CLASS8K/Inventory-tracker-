@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.inventory.data.BackupManager
+import com.example.inventory.data.ImportResult
+import com.example.inventory.data.PinAuthResult
 import com.example.inventory.data.SessionManager
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRepository
@@ -46,14 +48,13 @@ class AuthViewModel @Inject constructor(
 
     val currentUser: StateFlow<UserProfile?> = sessionManager.currentUser
 
-    fun signIn(user: UserProfile, pin: String, onResult: (Boolean) -> Unit) {
+    fun signIn(user: UserProfile, pin: String, onResult: (PinAuthResult) -> Unit) {
         viewModelScope.launch {
-            if (userRepository.authenticate(user, pin)) {
+            val result = userRepository.authenticate(user, pin)
+            if (result is PinAuthResult.Success) {
                 sessionManager.signIn(user)
-                onResult(true)
-            } else {
-                onResult(false)
             }
+            onResult(result)
         }
     }
 
@@ -100,10 +101,11 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun importBackup(source: Uri, onResult: (success: Boolean) -> Unit) {
+    fun importBackup(source: Uri, onResult: (ImportResult) -> Unit) {
         viewModelScope.launch {
-            val success = runCatching { backupManager.importFrom(source) }.isSuccess
-            onResult(success)
+            val result = runCatching { backupManager.importFrom(source) }
+                .getOrElse { ImportResult.ReadError }
+            onResult(result)
         }
     }
 

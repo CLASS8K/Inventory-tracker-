@@ -5,9 +5,11 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 
+const val DB_VERSION = 3
+
 @Database(
     entities = [InventoryItem::class, AuditLogEntry::class, UserProfile::class],
-    version = 2,
+    version = DB_VERSION,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.inventory.data.ImportResult
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRole
 import com.example.inventory.ui.AuthViewModel
@@ -85,11 +86,19 @@ fun AdminPanelScreen(viewModel: AuthViewModel, onBack: () -> Unit) {
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri != null) {
-            viewModel.importBackup(uri) { success ->
-                if (success) {
-                    restoreComplete = true
-                } else {
-                    Toast.makeText(context, "Restore failed — file wasn't a valid backup", Toast.LENGTH_SHORT).show()
+            viewModel.importBackup(uri) { result ->
+                when (result) {
+                    ImportResult.Success -> restoreComplete = true
+                    ImportResult.InvalidFile -> Toast.makeText(
+                        context,
+                        "That file isn't a Nkhokwe backup from this app version",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    ImportResult.ReadError -> Toast.makeText(
+                        context,
+                        "Couldn't read that file",
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
         }
