@@ -19,7 +19,12 @@ class InventoryRepository @Inject constructor(
         logAction(item.name, "Created", "Added with quantity ${item.quantity}", actorName)
     }
 
-    suspend fun updateItem(previous: InventoryItem, updated: InventoryItem, actorName: String) {
+    suspend fun updateItem(
+        previous: InventoryItem,
+        updated: InventoryItem,
+        actorName: String,
+        receiptPath: String? = null,
+    ) {
         inventoryDao.update(updated)
         val detail = if (previous.quantity != updated.quantity) {
             val delta = updated.quantity - previous.quantity
@@ -28,7 +33,7 @@ class InventoryRepository @Inject constructor(
         } else {
             "Details updated"
         }
-        logAction(updated.name, "Updated", detail, actorName)
+        logAction(updated.name, "Updated", detail, actorName, receiptPath)
     }
 
     suspend fun deleteItem(item: InventoryItem, actorName: String) {
@@ -36,9 +41,21 @@ class InventoryRepository @Inject constructor(
         logAction(item.name, "Deleted", "Removed from inventory", actorName)
     }
 
-    private suspend fun logAction(itemName: String, action: String, detail: String, actorName: String) {
+    private suspend fun logAction(
+        itemName: String,
+        action: String,
+        detail: String,
+        actorName: String,
+        receiptPath: String? = null,
+    ) {
         auditLogDao.insert(
-            AuditLogEntry(itemName = itemName, action = action, detail = detail, actorName = actorName),
+            AuditLogEntry(
+                itemName = itemName,
+                action = action,
+                detail = detail,
+                actorName = actorName,
+                receiptPath = receiptPath,
+            ),
         )
     }
 }

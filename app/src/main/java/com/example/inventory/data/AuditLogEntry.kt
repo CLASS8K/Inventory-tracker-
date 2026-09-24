@@ -12,4 +12,6 @@ data class AuditLogEntry(
     val detail: String,
     val actorName: String,
     val timestamp: Long = System.currentTimeMillis(),
+    /** Absolute path to a locally-stored receipt/proof-of-restock photo, if one was attached. */
+    val receiptPath: String? = null,
 )

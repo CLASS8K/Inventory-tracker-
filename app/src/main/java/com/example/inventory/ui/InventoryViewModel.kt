@@ -1,8 +1,10 @@
 package com.example.inventory.ui
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.inventory.data.AuditLogEntry
+import com.example.inventory.data.ImageStore
 import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.InventoryRepository
 import com.example.inventory.data.SessionManager
@@ -76,6 +78,7 @@ class InventoryViewModel @Inject constructor(
     private val repository: InventoryRepository,
     private val userRepository: UserRepository,
     private val sessionManager: SessionManager,
+    private val imageStore: ImageStore,
 ) : ViewModel() {
 
     private val searchQuery = MutableStateFlow("")
@@ -131,6 +134,7 @@ class InventoryViewModel @Inject constructor(
         quantity: Int,
         lowStockThreshold: Int,
         unitPrice: Double,
+        photoPath: String? = null,
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
@@ -142,19 +146,30 @@ class InventoryViewModel @Inject constructor(
                     quantity = quantity,
                     lowStockThreshold = lowStockThreshold,
                     unitPrice = unitPrice,
+                    photoPath = photoPath,
                 ),
                 actorName = actor.name,
             )
         }
     }
 
-    fun updateItem(previous: InventoryItem, updated: InventoryItem) {
+    fun updateItem(previous: InventoryItem, updated: InventoryItem, receiptPath: String? = null) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
-            repository.updateItem(previous, updated, actorName = actor.name)
+            repository.updateItem(previous, updated, actorName = actor.name, receiptPath = receiptPath)
             if (actor.role == UserRole.STOCK_KEEPER && updated.quantity > previous.quantity) {
                 awardRestockXp(actor)
             }
+            if (previous.photoPath != null && previous.photoPath != updated.photoPath) {
+                imageStore.delete(previous.photoPath)
+            }
+        }
+    }
+
+    /** Copies a picked photo into app storage; returns the local path to persist, or null on failure. */
+    fun importImage(uri: Uri, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            onResult(imageStore.importImage(uri))
         }
     }
 
@@ -162,6 +177,7 @@ class InventoryViewModel @Inject constructor(
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
             repository.deleteItem(item, actorName = actor.name)
+            imageStore.delete(item.photoPath)
         }
     }
 

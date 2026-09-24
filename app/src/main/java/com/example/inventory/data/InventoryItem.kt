@@ -13,6 +13,8 @@ data class InventoryItem(
     val lowStockThreshold: Int,
     val unitPrice: Double,
     val lastUpdated: Long = System.currentTimeMillis(),
+    /** Absolute path to a locally-stored photo of the item, copied in via [com.example.inventory.data.ImageStore]. */
+    val photoPath: String? = null,
 ) {
     val isLowStock: Boolean
         get() = quantity <= lowStockThreshold

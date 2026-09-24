@@ -11,6 +11,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -59,10 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRole
@@ -75,6 +79,7 @@ import com.example.inventory.util.formatMwk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -255,9 +260,10 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = null,
             role = role,
+            onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price ->
-                viewModel.addItem(name, sku, category, quantity, threshold, price)
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, _ ->
+                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath)
                 isAdding = false
             },
             onDelete = null,
@@ -268,8 +274,9 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = item,
             role = role,
+            onImportImage = viewModel::importImage,
             onDismiss = { editingItem = null },
-            onSave = { name, sku, category, quantity, threshold, price ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath ->
                 viewModel.updateItem(
                     previous = item,
                     updated = item.copy(
@@ -279,8 +286,10 @@ fun InventoryMainScreen(
                         quantity = quantity,
                         lowStockThreshold = threshold,
                         unitPrice = price,
+                        photoPath = photoPath,
                         lastUpdated = System.currentTimeMillis(),
                     ),
+                    receiptPath = receiptPath,
                 )
                 editingItem = null
             },
@@ -485,6 +494,17 @@ private fun InventoryItemRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (item.photoPath != null) {
+                AsyncImage(
+                    model = File(item.photoPath),
+                    contentDescription = "${item.name} photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = item.name, fontWeight = FontWeight.Bold)
                 Text(

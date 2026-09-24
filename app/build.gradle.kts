@@ -102,7 +102,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.hilt.android)
   implementation(libs.androidx.hilt.navigation.compose)
-  // implementation(libs.coil.compose)
+  implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
