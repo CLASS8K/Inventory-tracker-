@@ -25,6 +25,33 @@ View your app in AI Studio: https://ai.studio/apps/fab4b4cb-a002-4e63-8cdd-566dc
 
 Every push to `main` (and manual runs via the Actions tab) builds a debug APK in CI and uploads it as a workflow artifact — see `.github/workflows/build-apk.yml`. Go to the **Actions** tab, open the latest "Build debug APK" run, and download the `inventory-tracker-debug-apk` artifact. No local Android SDK needed.
 
+## Subscription lockout setup (one-time, outside this codebase)
+
+The code for the subscription check is in and building clean, but it does nothing useful yet — it needs a real Firebase project, which is configuration this sandbox can't create (same category as the release signing keystore and crash reporting). Without this, the app just runs as if the subscription is always current (fails safe, not closed).
+
+1. **Create a Firebase project** at [console.firebase.google.com](https://console.firebase.google.com) (or use an existing one).
+2. **Add an Android app** to it with package name `com.aistudio.inventory.invrqk` (the `applicationId` in `app/build.gradle.kts`).
+3. **Download `google-services.json`** from the project settings and place it at `app/google-services.json`. This repo's `.gitignore` does *not* currently exclude it, so it will show up in `git status` and get committed like any other file if you `git add` it — that's fine, it contains no secrets that aren't already public inside the built APK (it's a client identifier, not a credential), same as any Firebase Android app.
+4. **Create a Firestore database** in the project (Firestore Database → Create database; either mode, since the security rule below controls access either way).
+5. **Create the document**: collection `license`, document `status`, with one field:
+   - `activeUntilMillis` — **Number** — epoch milliseconds for the date the current payment period ends. (Tell me the date each month and I'll give you the exact number to paste, or use any "epoch converter" search result.)
+6. **Set the security rule** (Firestore → Rules tab → replace the contents → Publish):
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /license/status {
+         allow read: if true;
+         allow write: if false;
+       }
+     }
+   }
+   ```
+   This lets the app read that one document with no login required, and blocks writes from anywhere except the Firebase console — the app never writes to it.
+7. **Each month, after payment**: open that document in the Firestore console and update `activeUntilMillis` to the new due date. That's the entire renewal process — no app update, no redeploy.
+
+Until this is done, `LicenseChecker` will fail every fetch (no `FirebaseFirestore` to talk to) and the app quietly stays in its default ACTIVE state forever — it does not crash, and it does not lock anyone out by accident.
+
 ## Features
 
 - **Gamified sign-in** — pick a profile card and unlock it with a 4-digit PIN; the first account created becomes the admin
@@ -45,6 +72,7 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 - **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet, or export the full inventory as a CSV file for bookkeeping/reconciliation
 - **Audit log** — every create/update/delete is recorded with actor, action badge, and a relative timestamp
 - **Auto sign-out** — a session is signed out automatically after 5 minutes backgrounded, so a shared device doesn't stay logged in as whoever last used it
+- **Subscription check** — reads a single Firestore document to see if this business's subscription is current. Never requires a live connection to open the app (the last-known due date is cached and used until a fresher one is fetched); a warning banner shows from 7 days before the due date, and the app goes read-only (view only — no selling, restocking, editing, or stock takes; user management and backup/export are unaffected) starting 5 days after it, not the instant it's due. See "Subscription lockout setup" below — this needs a one-time Firebase configuration step outside this codebase before it does anything
 
 All data is persisted locally via Room; nothing here requires the Gemini API key yet (it's wired up for future AI-assisted features per the project's Firebase AI dependency, not used by the current UI). Typography uses the Fraunces Google Font, loaded as a downloadable font via Google Play services.
 
@@ -70,12 +98,14 @@ app/src/main/java/com/example/
       ImageStore.kt                  Copies picked photos into app-private storage (item photos, receipts)
       StockLossReason.kt             Why a stock take came in short — only SOLD counts as revenue
       LowStockNotifier.kt            Posts/cancels the local low-stock notification
+      LicenseChecker.kt              Reads license/status from Firestore, caches locally, computes ACTIVE/WARNING/READ_ONLY
     di/
       DatabaseModule.kt            Hilt module providing the Room database + DAOs
     ui/
       InventoryViewModel.kt        Exposes InventoryUiState (items, search, sort, filter, dashboard totals) + stock-take undo state
       AuthViewModel.kt              Exposes AuthUiState (users, current user, leaderboard)
       SupplierViewModel.kt          Exposes the supplier list; create/update/delete
+      LicenseViewModel.kt            Exposes subscription status + days until due; refreshes on app foreground
       screens/
         SignInScreen.kt             Profile picker, PIN pad, user creation
         AdminPanelScreen.kt          User management + restocker leaderboard, Suppliers tab (add/edit/remove)
@@ -111,4 +141,7 @@ app/src/main/java/com/example/
 - Low-stock notifications need the POST_NOTIFICATIONS runtime permission on Android 13+, requested once right after sign-in. If denied, the app doesn't re-prompt (by design — Android's own guidance against nagging) and low-stock alerts just silently don't show; the in-app low-stock banner and dashboard count still work regardless, so this is a convenience layer, not the only way to see low stock. There's no in-app way yet to re-request it after an initial denial short of the device's own app notification settings — worth adding if that turns out to matter in practice.
 - The undo window on a stock take is a single in-memory slot (last stock take only) that's cleared if the screen recomposes away from it (e.g. the process is killed) — there's no "undo history," and once the Snackbar times out or a second stock take is saved, the previous one can't be recovered short of manually fixing the numbers.
 - The quick sell tap (`−` on an item card) has no undo, unlike Stock Take — deliberate, not an oversight: it's meant to be tapped dozens of times a shift, and a Snackbar per tap would be noise, not a safety net. A wrong tap is fixed the same way a miscount is: run a Stock Take (or edit the item directly, Admin-only) to correct the quantity; the mistaken "Sale" audit entry itself stays in the log as a record of what happened, same as any other audit entry.
+- The subscription check trusts the device's own clock and a Firestore document with no server-side enforcement beyond that — someone technically inclined could set their phone's date back to stay in the warning window indefinitely, or a compromised device could tamper with it. Deliberately not hardened further: this is scoped to one trusted client on a retainer, not a general licensing system for resale, and that tradeoff was made explicitly (see chat history) rather than by oversight. Revisit if this app is ever resold to other businesses.
+- Read-only mode blocks add/edit/delete on items, quick sell, restock, and Stock Take. It deliberately does **not** block Admin Panel user/supplier management or backup/export — those aren't revenue-generating actions, and export especially needs to keep working so a locked-out business can always get its own data out.
+- `LicenseChecker`/Firestore has never been exercised against a real Firebase project or a real device in this sandbox (same no-Android-SDK, egress-restricted caveat as everywhere else in this file) — the API calls were verified against Firebase's own official Kotlin sample code before writing this, not from memory, but "compiles and matches the docs" isn't the same as "confirmed working." Test the actual read against your Firestore document once it's set up (see "Subscription lockout setup" above), specifically: the warning banner appears near the due date, and read-only actually blocks writes once past it.
 

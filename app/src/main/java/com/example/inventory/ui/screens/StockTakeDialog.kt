@@ -33,6 +33,7 @@ import com.example.inventory.util.formatMwk
 fun StockTakeDialog(
     item: InventoryItem,
     isAdmin: Boolean,
+    isReadOnly: Boolean,
     onDismiss: () -> Unit,
     onSave: (openingStock: Int, closingStock: Int, reason: StockLossReason) -> Unit,
 ) {
@@ -127,11 +128,19 @@ fun StockTakeDialog(
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }
+                if (isReadOnly) {
+                    Text(
+                        text = "Subscription overdue — saving a count is paused until it's renewed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = isValid,
+                enabled = isValid && !isReadOnly,
                 onClick = { onSave(openingValue!!, closingValue!!, reason) },
             ) {
                 Text("Save count")

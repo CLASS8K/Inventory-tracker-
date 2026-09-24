@@ -28,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.inventory.data.UserRole
 import com.example.inventory.ui.AuthViewModel
 import com.example.inventory.ui.InventoryViewModel
+import com.example.inventory.ui.LicenseViewModel
 import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.ui.screens.AdminPanelScreen
 import com.example.inventory.ui.screens.InventoryMainScreen
@@ -62,7 +63,10 @@ private fun NkhokweApp() {
     val authViewModel: AuthViewModel = hiltViewModel()
     val inventoryViewModel: InventoryViewModel = hiltViewModel()
     val supplierViewModel: SupplierViewModel = hiltViewModel()
+    val licenseViewModel: LicenseViewModel = hiltViewModel()
     val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
+    val licenseStatus by licenseViewModel.status.collectAsStateWithLifecycle()
+    val licenseDaysUntilDue by licenseViewModel.daysUntilDue.collectAsStateWithLifecycle()
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -85,6 +89,7 @@ private fun NkhokweApp() {
                         authViewModel.signOut()
                     }
                     backgroundedAt = null
+                    licenseViewModel.refresh()
                 }
                 else -> Unit
             }
@@ -105,6 +110,8 @@ private fun NkhokweApp() {
         InventoryMainScreen(
             viewModel = inventoryViewModel,
             supplierViewModel = supplierViewModel,
+            licenseStatus = licenseStatus,
+            licenseDaysUntilDue = licenseDaysUntilDue,
             onOpenAdminPanel = { showAdminPanel = true },
             onSignOut = {
                 showAdminPanel = false

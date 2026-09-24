@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
+import com.example.inventory.data.LicenseStatus
 import com.example.inventory.data.Supplier
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRole
@@ -112,6 +113,8 @@ import java.util.Locale
 fun InventoryMainScreen(
     viewModel: InventoryViewModel,
     supplierViewModel: SupplierViewModel,
+    licenseStatus: LicenseStatus,
+    licenseDaysUntilDue: Long,
     onOpenAdminPanel: () -> Unit,
     onSignOut: () -> Unit,
 ) {
@@ -121,6 +124,19 @@ fun InventoryMainScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val isReadOnly = licenseStatus == LicenseStatus.READ_ONLY
+
+    fun blockIfReadOnly(action: () -> Unit) {
+        if (isReadOnly) {
+            Toast.makeText(
+                context,
+                "Subscription overdue — contact Frank to restore full access",
+                Toast.LENGTH_LONG,
+            ).show()
+        } else {
+            action()
+        }
+    }
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
     var stockTakeItem by remember { mutableStateOf<InventoryItem?>(null) }
@@ -222,7 +238,7 @@ fun InventoryMainScreen(
         },
         floatingActionButton = {
             if (uiState.isAdmin) {
-                FloatingActionButton(onClick = { isAdding = true }) {
+                FloatingActionButton(onClick = { blockIfReadOnly { isAdding = true } }) {
                     Icon(Icons.Default.Add, contentDescription = "Add item")
                 }
             }
@@ -276,6 +292,16 @@ fun InventoryMainScreen(
                 }
             }
 
+            if (uiState.isAdmin) {
+                AnimatedVisibility(
+                    visible = licenseStatus != LicenseStatus.ACTIVE,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                    LicenseBanner(status = licenseStatus, daysUntilDue = licenseDaysUntilDue)
+                }
+            }
+
             AnimatedVisibility(
                 visible = uiState.lowStockItems.isNotEmpty(),
                 enter = fadeIn() + expandVertically(),
@@ -298,10 +324,10 @@ fun InventoryMainScreen(
                             item = item,
                             modifier = Modifier.animateItem(),
                             onClick = { editingItem = item },
-                            onRestock = { viewModel.adjustQuantity(item, 1) },
-                            onSellOne = { viewModel.sellUnits(item, 1) },
-                            onSellBulk = { sellItem = item },
-                            onStockTake = { stockTakeItem = item },
+                            onRestock = { blockIfReadOnly { viewModel.adjustQuantity(item, 1) } },
+                            onSellOne = { blockIfReadOnly { viewModel.sellUnits(item, 1) } },
+                            onSellBulk = { blockIfReadOnly { sellItem = item } },
+                            onStockTake = { blockIfReadOnly { stockTakeItem = item } },
                         )
                     }
                 }
@@ -313,6 +339,7 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = null,
             role = role,
+            isReadOnly = isReadOnly,
             suppliers = suppliers,
             onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
@@ -331,6 +358,7 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = item,
             role = role,
+            isReadOnly = isReadOnly,
             suppliers = suppliers,
             onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
@@ -374,6 +402,7 @@ fun InventoryMainScreen(
         StockTakeDialog(
             item = item,
             isAdmin = uiState.isAdmin,
+            isReadOnly = isReadOnly,
             onDismiss = { stockTakeItem = null },
             onSave = { openingStock, closingStock, reason ->
                 viewModel.recordStockTake(item, openingStock, closingStock, reason)
@@ -487,6 +516,35 @@ private fun CategoryChips(
                 onClick = { onSelect(category) },
                 label = { Text(if (category == ALL_CATEGORIES) "All Items" else category) },
             )
+        }
+    }
+}
+
+@Composable
+private fun LicenseBanner(status: LicenseStatus, daysUntilDue: Long) {
+    val message = when {
+        status == LicenseStatus.READ_ONLY -> "Subscription overdue — selling, restocking, and editing items are paused. Contact Frank to restore full access."
+        daysUntilDue >= 0 -> "Subscription due in $daysUntilDue day${if (daysUntilDue == 1L) "" else "s"}."
+        else -> "Subscription overdue by ${-daysUntilDue} day${if (daysUntilDue == -1L) "" else "s"} — renew soon to avoid restricted access."
+    }
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (status == LicenseStatus.READ_ONLY) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.tertiaryContainer
+            },
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(12.dp),
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = null)
+            Text(text = message, modifier = Modifier.padding(start = 8.dp))
         }
     }
 }

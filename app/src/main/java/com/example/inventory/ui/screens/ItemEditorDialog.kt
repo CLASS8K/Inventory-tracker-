@@ -54,6 +54,7 @@ import java.io.File
 fun ItemEditorDialog(
     item: InventoryItem?,
     role: UserRole,
+    isReadOnly: Boolean,
     suppliers: List<Supplier>,
     onCreateSupplier: (name: String, phone: String, onResult: (Supplier) -> Unit) -> Unit,
     onImportImage: (Uri, (String?) -> Unit) -> Unit,
@@ -88,7 +89,7 @@ fun ItemEditorDialog(
 
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
     val canEditConfig = role == UserRole.ADMIN
-    val canDelete = role == UserRole.ADMIN && onDelete != null
+    val canDelete = role == UserRole.ADMIN && onDelete != null && !isReadOnly
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onImportImage(uri) { path -> photoPath = path }
@@ -265,6 +266,14 @@ fun ItemEditorDialog(
                         modifier = Modifier.padding(top = 12.dp),
                     )
                 }
+                if (isReadOnly) {
+                    Text(
+                        text = "Subscription overdue — saving and deleting are paused until it's renewed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
                 if (canDelete) {
                     TextButton(onClick = onDelete!!, modifier = Modifier.padding(top = 12.dp)) {
                         Text("Delete item")
@@ -274,7 +283,7 @@ fun ItemEditorDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = isValid,
+                enabled = isValid && !isReadOnly,
                 onClick = {
                     onSave(
                         name.trim(),
