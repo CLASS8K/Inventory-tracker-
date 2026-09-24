@@ -21,11 +21,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.Supplier
 import com.example.inventory.data.UserRole
+import com.example.inventory.util.rememberBarcodeScanner
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,6 +97,7 @@ fun ItemEditorDialog(
         if (uri != null) onImportImage(uri) { path -> receiptPath = path }
     }
     val imageOnlyRequest = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+    val scanSku = rememberBarcodeScanner(onScanned = { value -> sku = value })
 
     val isValid = name.isNotBlank() &&
         quantity.toIntOrNull() != null &&
@@ -128,6 +132,15 @@ fun ItemEditorDialog(
                     label = { Text("SKU") },
                     singleLine = true,
                     enabled = canEditConfig,
+                    trailingIcon = if (canEditConfig) {
+                        {
+                            IconButton(onClick = scanSku) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan barcode for SKU")
+                            }
+                        }
+                    } else {
+                        null
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),

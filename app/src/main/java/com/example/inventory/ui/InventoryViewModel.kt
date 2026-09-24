@@ -31,6 +31,9 @@ enum class SortOption(val label: String) {
 
 const val ALL_CATEGORIES = "All Items"
 
+/** A just-saved stock take that can still be undone; cleared once the undo window closes. */
+data class UndoableStockTake(val item: InventoryItem, val previousQuantity: Int, val auditEntryId: Long)
+
 data class InventoryUiState(
     val items: List<InventoryItem> = emptyList(),
     val searchQuery: String = "",
@@ -89,6 +92,8 @@ class InventoryViewModel @Inject constructor(
     private val searchQuery = MutableStateFlow("")
     private val sortOption = MutableStateFlow(SortOption.NAME)
     private val categoryFilter = MutableStateFlow(ALL_CATEGORIES)
+    private val _lastStockTake = MutableStateFlow<UndoableStockTake?>(null)
+    val lastStockTake: StateFlow<UndoableStockTake?> = _lastStockTake
 
     private val itemsAndLog = combine(
         repository.items,
@@ -173,8 +178,23 @@ class InventoryViewModel @Inject constructor(
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
-            repository.recordStockTake(item, openingStock, closingStock, actorName = actor.name, reason = reason)
+            val auditEntryId = repository.recordStockTake(item, openingStock, closingStock, actorName = actor.name, reason = reason)
+            _lastStockTake.value = UndoableStockTake(item, previousQuantity = item.quantity, auditEntryId = auditEntryId)
         }
+    }
+
+    /** Reverts the most recent stock take, if the undo window hasn't been dismissed yet. */
+    fun undoLastStockTake() {
+        val undo = _lastStockTake.value ?: return
+        _lastStockTake.value = null
+        viewModelScope.launch {
+            repository.undoStockTake(undo.item, undo.previousQuantity, undo.auditEntryId)
+        }
+    }
+
+    /** Closes the undo window without reverting — called once the Snackbar times out or is swiped away. */
+    fun dismissStockTakeUndo() {
+        _lastStockTake.value = null
     }
 
     fun updateItem(previous: InventoryItem, updated: InventoryItem, receiptPath: String? = null) {

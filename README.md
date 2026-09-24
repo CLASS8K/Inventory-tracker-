@@ -37,6 +37,9 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 - **Cost price is admin-only, everywhere** — a Stock Keeper never sees the Cost Price field at all (not disabled, not rendered), never sees a Profit figure on a stock take, and never sees the Profit line on an audit log entry. Selling price and revenue are visible to both roles (a barman already knows what a drink sells for); only the margin is withheld
 - **Receipt photos** — either role can attach a photo of the supplier receipt/delivery note to a restock; it's saved on that audit log entry, viewable full-size from the audit log
 - **Stock take** — reconcile a physical count against the running total: enter opening and closing stock for an item and it computes quantity sold, revenue, and (Admins only) profit against the cost price. Closing ≥ opening is treated as an unlogged restock, not a sale, so it's never misreported as MWK 0 in revenue. When the count comes in lower than opening, you pick why — Sold, Spillage/Breakage, Complimentary/Staff, Theft/Loss, or Other — and only "Sold" counts as revenue; the rest are logged as a cost with zero revenue, so a dropped bottle or a comped drink can never inflate the numbers. Logged as a "Stock Take" audit entry; either role can record one
+- **Undo a stock take** — saving one shows a Snackbar with an Undo action for a few seconds; tapping it restores the item's prior quantity and removes the audit entry outright (not a correcting entry — a typo caught in the next few seconds was never a real business event). Missing the window is permanent, same as any other stock take
+- **Barcode scan** — a scanner icon on the main search bar and on the SKU field in the item editor launches Google Play services' on-device barcode scanner. Scanning in search jumps straight to a matching item by SKU; scanning in the editor fills the SKU field. No camera permission in this app — Play services owns the camera and scanning UI directly
+- **Low-stock push notifications** — the moment an item's quantity crosses at-or-below its threshold, a local notification fires (edge-triggered — it won't re-fire on every subsequent restock tap while still low). Purely on-device; there's no server to push from. Undoing the stock take that caused it cancels the notification
 - **Low-stock banner** — animated banner when any item is at or under its threshold; tap to expand it and see each low-stock item's linked supplier with one-tap Call / WhatsApp buttons to reorder
 - **Supplier directory** (admin only) — a lightweight contacts list (name, phone, notes) managed from the Admin Panel's Suppliers tab; items can be linked to a supplier from the item editor's "Reorder from" picker, or a new supplier can be added inline without leaving the dialog. Deliberately not a purchase-order system — no order quantities, no delivery tracking, no approval flow — just "who do I call when this runs low," which is what a single-bar client actually needs day to day
 - **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet, or export the full inventory as a CSV file for bookkeeping/reconciliation
@@ -66,23 +69,25 @@ app/src/main/java/com/example/
       BackupManager.kt              Exports/restores the on-device Room database as a file
       ImageStore.kt                  Copies picked photos into app-private storage (item photos, receipts)
       StockLossReason.kt             Why a stock take came in short — only SOLD counts as revenue
+      LowStockNotifier.kt            Posts/cancels the local low-stock notification
     di/
       DatabaseModule.kt            Hilt module providing the Room database + DAOs
     ui/
-      InventoryViewModel.kt        Exposes InventoryUiState (items, search, sort, filter, dashboard totals)
+      InventoryViewModel.kt        Exposes InventoryUiState (items, search, sort, filter, dashboard totals) + stock-take undo state
       AuthViewModel.kt              Exposes AuthUiState (users, current user, leaderboard)
       SupplierViewModel.kt          Exposes the supplier list; create/update/delete
       screens/
         SignInScreen.kt             Profile picker, PIN pad, user creation
         AdminPanelScreen.kt          User management + restocker leaderboard, Suppliers tab (add/edit/remove)
-        InventoryMainScreen.kt       Dashboard + search + filters + sort + list + FAB + low-stock supplier call/WhatsApp
-        ItemEditorDialog.kt          Add/edit form, fields locked down for Stock Keepers, supplier picker
+        InventoryMainScreen.kt       Dashboard + search (+ barcode scan) + filters + sort + list + FAB + low-stock supplier call/WhatsApp + stock-take undo Snackbar
+        ItemEditorDialog.kt          Add/edit form, fields locked down for Stock Keepers, supplier picker, SKU barcode scan
         StockTakeDialog.kt            Opening/closing count → qty sold + revenue
         AuditLogSheet.kt              Audit log bottom sheet
     util/
       CurrencyFormatter.kt          MWK formatting
       RelativeTime.kt                "5m ago" style timestamps
       CsvExport.kt                   Full-inventory CSV for bookkeeping/reconciliation
+      BarcodeScanner.kt              rememberBarcodeScanner() — wraps Play services' GmsBarcodeScanning
   ui/theme/                        MyApplicationTheme (Material3, Fraunces typography, dynamic color on Android 12+)
 ```
 
@@ -101,4 +106,7 @@ app/src/main/java/com/example/
 - Cost price and profit are role-gated in the UI (never rendered to a Stock Keeper), but they still live in plaintext in the local database and in any backup file exported from the Admin Panel — same caveat as the backup-file note above, just worth restating since this is the specific figure that was asked to stay hidden from staff. CSV export intentionally does *not* include cost price or profit, since CSV export is available to both roles.
 - Item/receipt photos live in app-private storage (`filesDir/images/`), *not* inside the backup file — `BackupManager` only copies the SQLite database. Restoring an old backup can leave `photoPath`/`receiptPath` values pointing at images that no longer exist on this device (the UI just shows a blank thumbnail, it won't crash), and photos added after a backup was taken aren't in it. Worth fixing — bundle the images directory into the backup, e.g. as a zip — before this is relied on as the only backup strategy.
 - No release signing key and no crash reporting wired up yet — both need something from outside this codebase (a real signing keystore you generate and keep safe; a real Firebase project for Crashlytics) rather than something that can be fabricated here. See the PR/chat history for what's needed to set each one up.
+- Barcode scan (`com.google.android.gms:play-services-code-scanner`) depends on Google Play services being installed and up to date. On a device without it (rare in practice, but real on some non-Google-certified Android devices), the scan buttons just show a "couldn't start the barcode scanner" toast — the SKU field and search box are still plain text fields either way, so nothing is blocked by it. This dependency, and its exact version, couldn't be verified by running a real build in this sandbox (same no-Android-SDK caveat as above) — confirm it resolves cleanly in the CI run for the commit that added it before relying on it.
+- Low-stock notifications need the POST_NOTIFICATIONS runtime permission on Android 13+, requested once right after sign-in. If denied, the app doesn't re-prompt (by design — Android's own guidance against nagging) and low-stock alerts just silently don't show; the in-app low-stock banner and dashboard count still work regardless, so this is a convenience layer, not the only way to see low stock. There's no in-app way yet to re-request it after an initial denial short of the device's own app notification settings — worth adding if that turns out to matter in practice.
+- The undo window on a stock take is a single in-memory slot (last stock take only) that's cleared if the screen recomposes away from it (e.g. the process is killed) — there's no "undo history," and once the Snackbar times out or a second stock take is saved, the previous one can't be recovered short of manually fixing the numbers.
 

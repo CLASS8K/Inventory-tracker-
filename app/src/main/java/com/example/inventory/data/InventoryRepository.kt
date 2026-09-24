@@ -9,6 +9,7 @@ import javax.inject.Singleton
 class InventoryRepository @Inject constructor(
     private val inventoryDao: InventoryDao,
     private val auditLogDao: AuditLogDao,
+    private val lowStockNotifier: LowStockNotifier,
 ) {
     val items: Flow<List<InventoryItem>> = inventoryDao.observeAll()
     val auditLog: Flow<List<AuditLogEntry>> = auditLogDao.observeAll()
@@ -18,6 +19,7 @@ class InventoryRepository @Inject constructor(
     suspend fun addItem(item: InventoryItem, actorName: String) {
         inventoryDao.upsert(item)
         logAction(item.name, "Created", "Added with quantity ${item.quantity}", actorName)
+        if (item.isLowStock) lowStockNotifier.notifyLowStock(item)
     }
 
     suspend fun updateItem(
@@ -35,11 +37,15 @@ class InventoryRepository @Inject constructor(
             "Details updated"
         }
         logAction(updated.name, "Updated", detail, actorName, receiptPath)
+        // Edge-triggered: only fires the moment it crosses the threshold, not on every subsequent
+        // adjustment while it stays low — otherwise every -1 tap while low would re-notify.
+        if (!previous.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
     }
 
     suspend fun deleteItem(item: InventoryItem, actorName: String) {
         inventoryDao.delete(item)
         logAction(item.name, "Deleted", "Removed from inventory", actorName)
+        lowStockNotifier.cancelLowStock(item.id)
     }
 
     /**
@@ -57,7 +63,7 @@ class InventoryRepository @Inject constructor(
         closingStock: Int,
         actorName: String,
         reason: StockLossReason = StockLossReason.SOLD,
-    ) {
+    ): Long {
         val updated = item.copy(quantity = closingStock, lastUpdated = System.currentTimeMillis())
         inventoryDao.update(updated)
 
@@ -80,7 +86,22 @@ class InventoryRepository @Inject constructor(
             profit = null
             detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
         }
-        logAction(item.name, "Stock Take", detail, actorName, profit = profit)
+        val entryId = logAction(item.name, "Stock Take", detail, actorName, profit = profit)
+        if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
+        return entryId
+    }
+
+    /**
+     * Reverts a stock take taken by mistake: restores the item's pre-count quantity and removes
+     * the audit entry it created. Deliberately a real delete, not a correcting entry — an
+     * un-noticed typo fixed within seconds of saving was never a real business event, so it
+     * shouldn't leave two confusing rows in the permanent audit history.
+     */
+    suspend fun undoStockTake(item: InventoryItem, previousQuantity: Int, auditEntryId: Long) {
+        val restored = item.copy(quantity = previousQuantity, lastUpdated = System.currentTimeMillis())
+        inventoryDao.update(restored)
+        auditLogDao.deleteById(auditEntryId)
+        if (!restored.isLowStock) lowStockNotifier.cancelLowStock(restored.id)
     }
 
     private suspend fun logAction(
@@ -90,16 +111,14 @@ class InventoryRepository @Inject constructor(
         actorName: String,
         receiptPath: String? = null,
         profit: Double? = null,
-    ) {
-        auditLogDao.insert(
-            AuditLogEntry(
-                itemName = itemName,
-                action = action,
-                detail = detail,
-                actorName = actorName,
-                receiptPath = receiptPath,
-                profit = profit,
-            ),
-        )
-    }
+    ): Long = auditLogDao.insert(
+        AuditLogEntry(
+            itemName = itemName,
+            action = action,
+            detail = detail,
+            actorName = actorName,
+            receiptPath = receiptPath,
+            profit = profit,
+        ),
+    )
 }

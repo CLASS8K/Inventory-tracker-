@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -55,6 +56,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -85,6 +90,7 @@ import com.example.inventory.ui.SortOption
 import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.util.buildInventoryCsv
 import com.example.inventory.util.formatMwk
+import com.example.inventory.util.rememberBarcodeScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,8 +109,10 @@ fun InventoryMainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val suppliers by supplierViewModel.suppliers.collectAsStateWithLifecycle()
+    val lastStockTake by viewModel.lastStockTake.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
     var stockTakeItem by remember { mutableStateOf<InventoryItem?>(null) }
@@ -113,7 +121,22 @@ fun InventoryMainScreen(
     var showShareMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
 
+    LaunchedEffect(lastStockTake?.auditEntryId) {
+        val undo = lastStockTake ?: return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Stock take saved for ${undo.item.name}",
+            actionLabel = "Undo",
+            duration = SnackbarDuration.Long,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.undoLastStockTake()
+        } else {
+            viewModel.dismissStockTakeUndo()
+        }
+    }
+
     val role = uiState.currentUser?.role ?: UserRole.STOCK_KEEPER
+    val scanSearch = rememberBarcodeScanner(onScanned = viewModel::onSearchQueryChange)
 
     val csvExportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/csv"),
@@ -137,6 +160,7 @@ fun InventoryMainScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Nkhokwe") },
@@ -205,6 +229,11 @@ fun InventoryMainScreen(
                 onValueChange = viewModel::onSearchQueryChange,
                 label = { Text("Search by name, SKU, or category") },
                 singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = scanSearch) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan barcode to search")
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
