@@ -2,6 +2,9 @@ package com.example.inventory.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -51,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,7 +70,14 @@ import com.example.inventory.ui.ALL_CATEGORIES
 import com.example.inventory.ui.InventoryUiState
 import com.example.inventory.ui.InventoryViewModel
 import com.example.inventory.ui.SortOption
+import com.example.inventory.util.buildInventoryCsv
 import com.example.inventory.util.formatMwk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +88,7 @@ fun InventoryMainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
     var isAdding by remember { mutableStateOf(false) }
@@ -85,6 +97,27 @@ fun InventoryMainScreen(
     var showSortMenu by remember { mutableStateOf(false) }
 
     val role = uiState.currentUser?.role ?: UserRole.STOCK_KEEPER
+
+    val csvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            val csv = buildInventoryCsv(uiState.items)
+            coroutineScope.launch {
+                val written = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+                            ?: error("no output stream")
+                    }.isSuccess
+                }
+                Toast.makeText(
+                    context,
+                    if (written) "CSV exported" else "CSV export failed",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -111,6 +144,14 @@ fun InventoryMainScreen(
                                         context,
                                         buildReport(uiState.lowStockItems, "Nkhokwe low-stock report", null),
                                     )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as CSV") },
+                                onClick = {
+                                    showShareMenu = false
+                                    val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+                                    csvExportLauncher.launch("nkhokwe-inventory-$stamp.csv")
                                 },
                             )
                         }

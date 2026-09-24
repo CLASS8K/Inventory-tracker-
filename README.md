@@ -35,8 +35,9 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 - **Quick +/- stock adjustments** — one tap to restock or draw down an item directly from its card
 - **Add / edit / delete items** (admin only) — name, SKU, category, quantity, low-stock threshold, unit price in MWK
 - **Low-stock banner** — animated banner when any item is at or under its threshold
-- **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet
+- **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet, or export the full inventory as a CSV file for bookkeeping/reconciliation
 - **Audit log** — every create/update/delete is recorded with actor, action badge, and a relative timestamp
+- **Auto sign-out** — a session is signed out automatically after 5 minutes backgrounded, so a shared device doesn't stay logged in as whoever last used it
 
 All data is persisted locally via Room; nothing here requires the Gemini API key yet (it's wired up for future AI-assisted features per the project's Firebase AI dependency, not used by the current UI). Typography uses the Fraunces Google Font, loaded as a downloadable font via Google Play services.
 
@@ -51,7 +52,7 @@ app/src/main/java/com/example/
       InventoryItem.kt            Room @Entity
       UserProfile.kt               Room @Entity — role, avatar, PIN hash, XP/level
       InventoryDao.kt / AuditLogDao.kt / UserDao.kt
-      InventoryDatabase.kt         Room @Database (v2 — fallbackToDestructiveMigration pre-release)
+      InventoryDatabase.kt         Room @Database (v3 — fallbackToDestructiveMigration pre-release)
       InventoryRepository.kt        Combines DAOs, writes audit log entries on every mutation
       UserRepository.kt             User CRUD, PIN hashing (salted SHA-256), XP awards
       SessionManager.kt             In-memory signed-in user for the process
@@ -71,6 +72,7 @@ app/src/main/java/com/example/
     util/
       CurrencyFormatter.kt          MWK formatting
       RelativeTime.kt                "5m ago" style timestamps
+      CsvExport.kt                   Full-inventory CSV for bookkeeping/reconciliation
   ui/theme/                        MyApplicationTheme (Material3, Fraunces typography, dynamic color on Android 12+)
 ```
 
