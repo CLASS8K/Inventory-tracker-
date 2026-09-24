@@ -29,12 +29,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import com.example.inventory.data.AuditLogEntry
+import com.example.inventory.util.formatMwk
 import com.example.inventory.util.formatRelativeTime
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AuditLogSheet(entries: List<AuditLogEntry>, onDismiss: () -> Unit) {
+fun AuditLogSheet(entries: List<AuditLogEntry>, isAdmin: Boolean, onDismiss: () -> Unit) {
     var viewingReceipt by remember { mutableStateOf<String?>(null) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -58,7 +59,7 @@ fun AuditLogSheet(entries: List<AuditLogEntry>, onDismiss: () -> Unit) {
                         .padding(bottom = 24.dp),
                 ) {
                     items(entries, key = { it.id }) { entry ->
-                        AuditLogRow(entry, onViewReceipt = { viewingReceipt = entry.receiptPath })
+                        AuditLogRow(entry, isAdmin = isAdmin, onViewReceipt = { viewingReceipt = entry.receiptPath })
                     }
                 }
             }
@@ -98,7 +99,7 @@ private fun ActionBadge(action: String) {
 }
 
 @Composable
-private fun AuditLogRow(entry: AuditLogEntry, onViewReceipt: () -> Unit) {
+private fun AuditLogRow(entry: AuditLogEntry, isAdmin: Boolean, onViewReceipt: () -> Unit) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionBadge(entry.action)
@@ -121,6 +122,14 @@ private fun AuditLogRow(entry: AuditLogEntry, onViewReceipt: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
         )
+        if (isAdmin && entry.profit != null) {
+            Text(
+                text = "Profit: ${formatMwk(entry.profit)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Text(
             text = "${entry.actorName} · ${formatRelativeTime(entry.timestamp)}",
             style = MaterialTheme.typography.labelSmall,

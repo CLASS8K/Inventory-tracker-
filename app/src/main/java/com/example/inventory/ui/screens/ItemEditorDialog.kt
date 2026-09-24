@@ -61,6 +61,7 @@ fun ItemEditorDialog(
         photoPath: String?,
         receiptPath: String?,
         unit: String,
+        costPrice: Double,
     ) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
@@ -70,6 +71,7 @@ fun ItemEditorDialog(
     var quantity by remember { mutableStateOf(item?.quantity?.toString().orEmpty()) }
     var threshold by remember { mutableStateOf(item?.lowStockThreshold?.toString().orEmpty()) }
     var price by remember { mutableStateOf(item?.unitPrice?.toString().orEmpty()) }
+    var costPriceText by remember { mutableStateOf(item?.costPrice?.takeIf { it != 0.0 }?.toString().orEmpty()) }
     var photoPath by remember { mutableStateOf(item?.photoPath) }
     var receiptPath by remember { mutableStateOf<String?>(null) }
     var unit by remember { mutableStateOf(item?.unit ?: InventoryItem.DEFAULT_UNIT) }
@@ -181,7 +183,7 @@ fun ItemEditorDialog(
                 OutlinedTextField(
                     value = price,
                     onValueChange = { input -> price = input.filter { it.isDigit() || it == '.' } },
-                    label = { Text("Unit Price (MWK)") },
+                    label = { Text("Selling Price (MWK)") },
                     singleLine = true,
                     enabled = canEditConfig,
                     leadingIcon = { Text("MWK") },
@@ -190,6 +192,20 @@ fun ItemEditorDialog(
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                 )
+                if (canEditConfig) {
+                    // Rendered only for Admins — never shown, even disabled, to a Stock Keeper.
+                    OutlinedTextField(
+                        value = costPriceText,
+                        onValueChange = { input -> costPriceText = input.filter { it.isDigit() || it == '.' } },
+                        label = { Text("Cost Price (MWK) — hidden from Stock Keepers") },
+                        singleLine = true,
+                        leadingIcon = { Text("MWK") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                    )
+                }
                 if (!canEditConfig) {
                     Text(
                         text = "Only Admins can change item details, pricing, or thresholds.",
@@ -219,6 +235,7 @@ fun ItemEditorDialog(
                         photoPath,
                         receiptPath,
                         unit,
+                        costPriceText.toDoubleOrNull() ?: 0.0,
                     )
                 },
             ) {

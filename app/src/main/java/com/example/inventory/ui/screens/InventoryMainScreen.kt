@@ -265,8 +265,8 @@ fun InventoryMainScreen(
             role = role,
             onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit ->
-                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit)
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit, costPrice ->
+                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit, costPrice)
                 isAdding = false
             },
             onDelete = null,
@@ -279,7 +279,7 @@ fun InventoryMainScreen(
             role = role,
             onImportImage = viewModel::importImage,
             onDismiss = { editingItem = null },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice ->
                 viewModel.updateItem(
                     previous = item,
                     updated = item.copy(
@@ -291,6 +291,7 @@ fun InventoryMainScreen(
                         unitPrice = price,
                         photoPath = photoPath,
                         unit = unit,
+                        costPrice = costPrice,
                         lastUpdated = System.currentTimeMillis(),
                     ),
                     receiptPath = receiptPath,
@@ -309,12 +310,13 @@ fun InventoryMainScreen(
     }
 
     if (showAuditLog) {
-        AuditLogSheet(entries = uiState.auditLog, onDismiss = { showAuditLog = false })
+        AuditLogSheet(entries = uiState.auditLog, isAdmin = uiState.isAdmin, onDismiss = { showAuditLog = false })
     }
 
     stockTakeItem?.let { item ->
         StockTakeDialog(
             item = item,
+            isAdmin = uiState.isAdmin,
             onDismiss = { stockTakeItem = null },
             onSave = { openingStock, closingStock ->
                 viewModel.recordStockTake(item, openingStock, closingStock)
@@ -366,6 +368,13 @@ private fun DashboardRow(uiState: InventoryUiState) {
                 modifier = Modifier.weight(1f),
                 emphasize = uiState.lowStockItems.isNotEmpty(),
             )
+            if (uiState.isAdmin) {
+                MetricCard(
+                    label = "Potential Profit",
+                    value = formatMwk(uiState.totalPotentialProfit),
+                    modifier = Modifier.weight(1.3f),
+                )
+            }
         }
     }
 }

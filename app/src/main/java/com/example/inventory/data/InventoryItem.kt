@@ -17,6 +17,8 @@ data class InventoryItem(
     val photoPath: String? = null,
     /** How this item is counted/sold, e.g. Bottle, Can, Shot — free text but the editor suggests a fixed set. */
     val unit: String = DEFAULT_UNIT,
+    /** What this item cost to acquire — admin-entered, never shown to a Stock Keeper. */
+    val costPrice: Double = 0.0,
 ) {
     val isLowStock: Boolean
         get() = quantity <= lowStockThreshold

@@ -23,6 +23,7 @@ import com.example.inventory.util.formatMwk
 @Composable
 fun StockTakeDialog(
     item: InventoryItem,
+    isAdmin: Boolean,
     onDismiss: () -> Unit,
     onSave: (openingStock: Int, closingStock: Int) -> Unit,
 ) {
@@ -37,7 +38,14 @@ fun StockTakeDialog(
     val summary = if (openingValue != null && closingValue != null) {
         val delta = closingValue - openingValue
         if (delta < 0) {
-            "Sold ${-delta} $unitLabel(s) · ${formatMwk(-delta * item.unitPrice)}"
+            val quantitySold = -delta
+            val revenue = "Sold $quantitySold $unitLabel(s) · ${formatMwk(quantitySold * item.unitPrice)}"
+            if (isAdmin) {
+                val profit = quantitySold * (item.unitPrice - item.costPrice)
+                "$revenue · Profit ${formatMwk(profit)}"
+            } else {
+                revenue
+            }
         } else if (delta > 0) {
             "Stock increased by $delta $unitLabel(s) — not counted as a sale"
         } else {

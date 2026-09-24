@@ -71,6 +71,10 @@ data class InventoryUiState(
     val outOfStockCount: Int get() = items.count { it.quantity == 0 }
     val totalValue: Double get() = items.sumOf { it.quantity * it.unitPrice }
     val totalUnits: Int get() = items.sumOf { it.quantity }
+
+    /** Profit if everything currently on the shelf sold at its listed price. Admin-only figure. */
+    val totalPotentialProfit: Double
+        get() = items.sumOf { it.quantity * (it.unitPrice - it.costPrice) }
 }
 
 @HiltViewModel
@@ -136,6 +140,7 @@ class InventoryViewModel @Inject constructor(
         unitPrice: Double,
         photoPath: String? = null,
         unit: String = InventoryItem.DEFAULT_UNIT,
+        costPrice: Double = 0.0,
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
@@ -149,6 +154,7 @@ class InventoryViewModel @Inject constructor(
                     unitPrice = unitPrice,
                     photoPath = photoPath,
                     unit = unit,
+                    costPrice = costPrice,
                 ),
                 actorName = actor.name,
             )

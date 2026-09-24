@@ -46,7 +46,9 @@ class InventoryRepository @Inject constructor(
      * Reconciles a physical count against the running quantity. A closing count below opening
      * is treated as sales (qty sold * unit price = amount); a closing count at or above opening
      * means stock was added without being logged as a restock, so it's noted as such rather than
-     * reported as zero-value sales.
+     * reported as zero-value sales. Profit (qty sold * (sell price - cost price)) is stored as a
+     * structured field, never in [AuditLogEntry.detail] — that text is shown to every role, and
+     * profit is admin-only.
      */
     suspend fun recordStockTake(
         item: InventoryItem,
@@ -59,14 +61,18 @@ class InventoryRepository @Inject constructor(
 
         val delta = closingStock - openingStock
         val unitLabel = item.unit.ifBlank { InventoryItem.DEFAULT_UNIT }
-        val detail = if (delta < 0) {
+        val profit: Double?
+        val detail: String
+        if (delta < 0) {
             val quantitySold = -delta
             val amount = quantitySold * item.unitPrice
-            "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantitySold · ${formatMwk(amount)}"
+            profit = quantitySold * (item.unitPrice - item.costPrice)
+            detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantitySold · ${formatMwk(amount)}"
         } else {
-            "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
+            profit = null
+            detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
         }
-        logAction(item.name, "Stock Take", detail, actorName)
+        logAction(item.name, "Stock Take", detail, actorName, profit = profit)
     }
 
     private suspend fun logAction(
@@ -75,6 +81,7 @@ class InventoryRepository @Inject constructor(
         detail: String,
         actorName: String,
         receiptPath: String? = null,
+        profit: Double? = null,
     ) {
         auditLogDao.insert(
             AuditLogEntry(
@@ -83,6 +90,7 @@ class InventoryRepository @Inject constructor(
                 detail = detail,
                 actorName = actorName,
                 receiptPath = receiptPath,
+                profit = profit,
             ),
         )
     }
