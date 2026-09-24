@@ -36,7 +36,7 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 - **Add / edit / delete items** (admin only) — name, SKU, category, unit (Bottle/Can/Shot/Unit), quantity, low-stock threshold, selling price in MWK, cost price, and an optional item photo
 - **Cost price is admin-only, everywhere** — a Stock Keeper never sees the Cost Price field at all (not disabled, not rendered), never sees a Profit figure on a stock take, and never sees the Profit line on an audit log entry. Selling price and revenue are visible to both roles (a barman already knows what a drink sells for); only the margin is withheld
 - **Receipt photos** — either role can attach a photo of the supplier receipt/delivery note to a restock; it's saved on that audit log entry, viewable full-size from the audit log
-- **Stock take** — reconcile a physical count against the running total: enter opening and closing stock for an item and it computes quantity sold, revenue, and (Admins only) profit against the cost price. Closing ≥ opening is treated as an unlogged restock, not a sale, so it's never misreported as MWK 0 in revenue. Logged as a "Stock Take" audit entry; either role can record one
+- **Stock take** — reconcile a physical count against the running total: enter opening and closing stock for an item and it computes quantity sold, revenue, and (Admins only) profit against the cost price. Closing ≥ opening is treated as an unlogged restock, not a sale, so it's never misreported as MWK 0 in revenue. When the count comes in lower than opening, you pick why — Sold, Spillage/Breakage, Complimentary/Staff, Theft/Loss, or Other — and only "Sold" counts as revenue; the rest are logged as a cost with zero revenue, so a dropped bottle or a comped drink can never inflate the numbers. Logged as a "Stock Take" audit entry; either role can record one
 - **Low-stock banner** — animated banner when any item is at or under its threshold
 - **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet, or export the full inventory as a CSV file for bookkeeping/reconciliation
 - **Audit log** — every create/update/delete is recorded with actor, action badge, and a relative timestamp
@@ -62,6 +62,7 @@ app/src/main/java/com/example/
       PinHasher.kt                  Salted SHA-256 PIN hashing
       BackupManager.kt              Exports/restores the on-device Room database as a file
       ImageStore.kt                  Copies picked photos into app-private storage (item photos, receipts)
+      StockLossReason.kt             Why a stock take came in short — only SOLD counts as revenue
     di/
       DatabaseModule.kt            Hilt module providing the Room database + DAOs
     ui/

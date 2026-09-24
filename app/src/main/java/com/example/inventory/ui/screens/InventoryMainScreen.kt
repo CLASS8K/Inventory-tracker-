@@ -318,8 +318,8 @@ fun InventoryMainScreen(
             item = item,
             isAdmin = uiState.isAdmin,
             onDismiss = { stockTakeItem = null },
-            onSave = { openingStock, closingStock ->
-                viewModel.recordStockTake(item, openingStock, closingStock)
+            onSave = { openingStock, closingStock, reason ->
+                viewModel.recordStockTake(item, openingStock, closingStock, reason)
                 stockTakeItem = null
             },
         )

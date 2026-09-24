@@ -8,6 +8,7 @@ import com.example.inventory.data.ImageStore
 import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.InventoryRepository
 import com.example.inventory.data.SessionManager
+import com.example.inventory.data.StockLossReason
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRepository
 import com.example.inventory.data.UserRole
@@ -162,10 +163,15 @@ class InventoryViewModel @Inject constructor(
     }
 
     /** Reconciles a physical count: closing stock becomes the item's new quantity. */
-    fun recordStockTake(item: InventoryItem, openingStock: Int, closingStock: Int) {
+    fun recordStockTake(
+        item: InventoryItem,
+        openingStock: Int,
+        closingStock: Int,
+        reason: StockLossReason = StockLossReason.SOLD,
+    ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
-            repository.recordStockTake(item, openingStock, closingStock, actorName = actor.name)
+            repository.recordStockTake(item, openingStock, closingStock, actorName = actor.name, reason = reason)
         }
     }
 

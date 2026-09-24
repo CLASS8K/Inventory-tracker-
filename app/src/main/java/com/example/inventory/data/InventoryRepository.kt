@@ -43,18 +43,20 @@ class InventoryRepository @Inject constructor(
     }
 
     /**
-     * Reconciles a physical count against the running quantity. A closing count below opening
-     * is treated as sales (qty sold * unit price = amount); a closing count at or above opening
-     * means stock was added without being logged as a restock, so it's noted as such rather than
-     * reported as zero-value sales. Profit (qty sold * (sell price - cost price)) is stored as a
-     * structured field, never in [AuditLogEntry.detail] — that text is shown to every role, and
-     * profit is admin-only.
+     * Reconciles a physical count against the running quantity. A closing count below opening is
+     * a loss of some kind — [reason] says which; only [StockLossReason.SOLD] counts as revenue,
+     * everything else (spillage, comps, theft) is logged as a cost with no revenue, so it never
+     * inflates the numbers on a Stock Take that wasn't actually a sale. A closing count at or
+     * above opening means stock was added without being logged as a restock, so it's noted as
+     * such. Profit (or loss, for a non-sale reason) is stored as a structured field, never in
+     * [AuditLogEntry.detail] — that text is shown to every role, and profit is admin-only.
      */
     suspend fun recordStockTake(
         item: InventoryItem,
         openingStock: Int,
         closingStock: Int,
         actorName: String,
+        reason: StockLossReason = StockLossReason.SOLD,
     ) {
         val updated = item.copy(quantity = closingStock, lastUpdated = System.currentTimeMillis())
         inventoryDao.update(updated)
@@ -64,10 +66,16 @@ class InventoryRepository @Inject constructor(
         val profit: Double?
         val detail: String
         if (delta < 0) {
-            val quantitySold = -delta
-            val amount = quantitySold * item.unitPrice
-            profit = quantitySold * (item.unitPrice - item.costPrice)
-            detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantitySold · ${formatMwk(amount)}"
+            val quantityLost = -delta
+            if (reason == StockLossReason.SOLD) {
+                val amount = quantityLost * item.unitPrice
+                profit = quantityLost * (item.unitPrice - item.costPrice)
+                detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantityLost · ${formatMwk(amount)}"
+            } else {
+                profit = -(quantityLost * item.costPrice)
+                detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · " +
+                    "Lost $quantityLost to ${reason.label} — no sale recorded"
+            }
         } else {
             profit = null
             detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
