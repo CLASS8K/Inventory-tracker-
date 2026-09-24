@@ -225,7 +225,7 @@ class InventoryViewModel @Inject constructor(
         }
     }
 
-    /** Quick +/- tap on an item card; both roles may restock, only positive deltas earn XP. */
+    /** Quick + tap on an item card to restock; both roles may do this, and it earns XP. */
     fun adjustQuantity(item: InventoryItem, delta: Int) {
         val actor = sessionManager.currentUser.value ?: return
         val newQuantity = (item.quantity + delta).coerceAtLeast(0)
@@ -239,6 +239,20 @@ class InventoryViewModel @Inject constructor(
             if (delta > 0) {
                 awardRestockXp(actor)
             }
+        }
+    }
+
+    /**
+     * Quick − tap (or long-press for a bulk quantity) on an item card. Unlike [adjustQuantity],
+     * this logs a real sale — revenue and admin-only profit computed immediately, same math as
+     * a Stock Take's "Sold" branch — so the fast, per-drink tap a barman actually reaches for
+     * produces real numbers instead of deferring everything to an end-of-shift reconciliation.
+     * [quantity] defaults to 1 for the single tap.
+     */
+    fun sellUnits(item: InventoryItem, quantity: Int = 1) {
+        val actor = sessionManager.currentUser.value ?: return
+        viewModelScope.launch {
+            repository.recordSale(item, quantity, actorName = actor.name)
         }
     }
 

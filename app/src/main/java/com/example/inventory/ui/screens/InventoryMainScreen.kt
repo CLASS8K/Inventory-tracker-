@@ -12,8 +12,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
@@ -44,6 +47,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -62,6 +66,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,10 +77,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -117,6 +124,7 @@ fun InventoryMainScreen(
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
     var stockTakeItem by remember { mutableStateOf<InventoryItem?>(null) }
+    var sellItem by remember { mutableStateOf<InventoryItem?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var showAuditLog by remember { mutableStateOf(false) }
     var showShareMenu by remember { mutableStateOf(false) }
@@ -290,7 +298,9 @@ fun InventoryMainScreen(
                             item = item,
                             modifier = Modifier.animateItem(),
                             onClick = { editingItem = item },
-                            onAdjust = { delta -> viewModel.adjustQuantity(item, delta) },
+                            onRestock = { viewModel.adjustQuantity(item, 1) },
+                            onSellOne = { viewModel.sellUnits(item, 1) },
+                            onSellBulk = { sellItem = item },
                             onStockTake = { stockTakeItem = item },
                         )
                     }
@@ -366,6 +376,17 @@ fun InventoryMainScreen(
             onSave = { openingStock, closingStock, reason ->
                 viewModel.recordStockTake(item, openingStock, closingStock, reason)
                 stockTakeItem = null
+            },
+        )
+    }
+
+    sellItem?.let { item ->
+        SellQuantityDialog(
+            item = item,
+            onDismiss = { sellItem = null },
+            onSell = { quantity ->
+                viewModel.sellUnits(item, quantity)
+                sellItem = null
             },
         )
     }
@@ -611,12 +632,15 @@ private fun StatusBadge(item: InventoryItem) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun InventoryItemRow(
     item: InventoryItem,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onAdjust: (Int) -> Unit,
+    onRestock: () -> Unit,
+    onSellOne: () -> Unit,
+    onSellBulk: () -> Unit,
     onStockTake: () -> Unit,
 ) {
     Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
@@ -659,8 +683,18 @@ private fun InventoryItemRow(
                 Icon(Icons.Default.Assignment, contentDescription = "Stock take for ${item.name}")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { onAdjust(-1) }, enabled = item.quantity > 0) {
-                    Icon(Icons.Default.Remove, contentDescription = "Decrease quantity")
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .alpha(if (item.quantity > 0) 1f else 0.38f)
+                        .combinedClickable(
+                            enabled = item.quantity > 0,
+                            onClick = onSellOne,
+                            onLongClick = onSellBulk,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Remove, contentDescription = "Sell 1 (hold to sell a specific quantity)")
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = "${item.quantity}", fontWeight = FontWeight.Bold)
@@ -670,10 +704,69 @@ private fun InventoryItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = { onAdjust(1) }) {
-                    Icon(Icons.Default.Add, contentDescription = "Increase quantity")
+                IconButton(onClick = onRestock) {
+                    Icon(Icons.Default.Add, contentDescription = "Restock 1")
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SellQuantityDialog(item: InventoryItem, onDismiss: () -> Unit, onSell: (quantity: Int) -> Unit) {
+    var quantityText by remember { mutableStateOf("1") }
+    val quantity = quantityText.toIntOrNull()
+    val unitLabel = item.unit.ifBlank { InventoryItem.DEFAULT_UNIT }
+    val isValid = quantity != null && quantity in 1..item.quantity
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sell ${item.name}") },
+        text = {
+            Column {
+                Text(
+                    text = "${item.quantity} $unitLabel(s) in stock",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = quantityText,
+                    onValueChange = { input -> quantityText = input.filter { it.isDigit() } },
+                    label = { Text("Quantity sold") },
+                    singleLine = true,
+                    isError = quantityText.isNotEmpty() && !isValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+                if (quantity != null && quantity > item.quantity) {
+                    Text(
+                        text = "Only ${item.quantity} in stock",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                if (isValid) {
+                    Text(
+                        text = "Total: ${formatMwk(quantity!! * item.unitPrice)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = isValid, onClick = { onSell(quantity!!) }) {
+                Text("Sell")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }

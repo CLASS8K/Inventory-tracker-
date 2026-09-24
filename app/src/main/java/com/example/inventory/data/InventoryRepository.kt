@@ -49,6 +49,25 @@ class InventoryRepository @Inject constructor(
     }
 
     /**
+     * Records a sale directly from the quick −1 tap (or a bulk sell): decrements quantity and
+     * logs revenue + admin-only profit immediately, the same math as a Stock Take's "Sold"
+     * branch — without waiting for an end-of-shift reconciliation to know what actually sold.
+     * Clamps to what's actually on hand rather than going negative.
+     */
+    suspend fun recordSale(item: InventoryItem, quantitySold: Int, actorName: String) {
+        val actualSold = quantitySold.coerceIn(0, item.quantity)
+        if (actualSold == 0) return
+        val updated = item.copy(quantity = item.quantity - actualSold, lastUpdated = System.currentTimeMillis())
+        inventoryDao.update(updated)
+        val unitLabel = item.unit.ifBlank { InventoryItem.DEFAULT_UNIT }
+        val amount = actualSold * item.unitPrice
+        val profit = actualSold * (item.unitPrice - item.costPrice)
+        val detail = "Sold $actualSold $unitLabel(s) · ${formatMwk(amount)}"
+        logAction(item.name, "Sale", detail, actorName, profit = profit)
+        if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
+    }
+
+    /**
      * Reconciles a physical count against the running quantity. A closing count below opening is
      * a loss of some kind — [reason] says which; only [StockLossReason.SOLD] counts as revenue,
      * everything else (spillage, comps, theft) is logged as a cost with no revenue, so it never

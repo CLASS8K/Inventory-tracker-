@@ -85,6 +85,7 @@ private fun ActionBadge(action: String) {
     val color = when (action) {
         "Created" -> MaterialTheme.colorScheme.tertiary
         "Deleted" -> MaterialTheme.colorScheme.error
+        "Sale" -> MaterialTheme.colorScheme.secondary
         else -> MaterialTheme.colorScheme.primary
     }
     Surface(color = color.copy(alpha = 0.16f), shape = RoundedCornerShape(50)) {
