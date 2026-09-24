@@ -11,5 +11,8 @@ interface AuditLogDao {
     fun observeAll(): Flow<List<AuditLogEntry>>
 
     @Insert
-    suspend fun insert(entry: AuditLogEntry)
+    suspend fun insert(entry: AuditLogEntry): Long
+
+    @Query("DELETE FROM audit_log WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

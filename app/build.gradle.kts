@@ -91,6 +91,7 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.compose.ui.text.google.fonts)
   implementation(libs.androidx.core.ktx)
   // implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
@@ -101,11 +102,11 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.hilt.android)
   implementation(libs.androidx.hilt.navigation.compose)
-  // implementation(libs.coil.compose)
+  implementation(libs.play.services.code.scanner)
+  implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(libs.firebase.firestore)
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
