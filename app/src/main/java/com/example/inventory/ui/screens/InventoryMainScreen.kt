@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -437,6 +438,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = label,
@@ -637,11 +639,18 @@ private fun InventoryItemRow(
                 Spacer(Modifier.width(12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = item.name, fontWeight = FontWeight.Bold)
+                Text(
+                    text = item.name,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     text = "${item.sku} · ${item.category}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(4.dp))
                 StatusBadge(item)
