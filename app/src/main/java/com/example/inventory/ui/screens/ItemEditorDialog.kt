@@ -6,6 +6,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +44,7 @@ import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.UserRole
 import java.io.File
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemEditorDialog(
     item: InventoryItem?,
@@ -56,6 +60,7 @@ fun ItemEditorDialog(
         unitPrice: Double,
         photoPath: String?,
         receiptPath: String?,
+        unit: String,
     ) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
@@ -67,6 +72,7 @@ fun ItemEditorDialog(
     var price by remember { mutableStateOf(item?.unitPrice?.toString().orEmpty()) }
     var photoPath by remember { mutableStateOf(item?.photoPath) }
     var receiptPath by remember { mutableStateOf<String?>(null) }
+    var unit by remember { mutableStateOf(item?.unit ?: InventoryItem.DEFAULT_UNIT) }
 
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
     val canEditConfig = role == UserRole.ADMIN
@@ -127,6 +133,26 @@ fun ItemEditorDialog(
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                 )
+                if (canEditConfig) {
+                    Text(
+                        text = "Unit",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        InventoryItem.UNIT_CHOICES.forEach { choice ->
+                            FilterChip(
+                                selected = unit == choice,
+                                onClick = { unit = choice },
+                                label = { Text(choice) },
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = quantity,
                     onValueChange = { input -> quantity = input.filter { it.isDigit() } },
@@ -192,6 +218,7 @@ fun ItemEditorDialog(
                         price.toDouble(),
                         photoPath,
                         receiptPath,
+                        unit,
                     )
                 },
             ) {

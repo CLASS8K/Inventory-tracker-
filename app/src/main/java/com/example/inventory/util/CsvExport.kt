@@ -6,7 +6,7 @@ import java.util.Date
 import java.util.Locale
 
 private val CSV_HEADER = listOf(
-    "Name", "SKU", "Category", "Quantity", "Low Stock Threshold",
+    "Name", "SKU", "Category", "Unit", "Quantity", "Low Stock Threshold",
     "Unit Price (MWK)", "Total Value (MWK)", "Last Updated",
 )
 
@@ -20,6 +20,7 @@ fun buildInventoryCsv(items: List<InventoryItem>): String {
                 item.name,
                 item.sku,
                 item.category,
+                item.unit,
                 item.quantity.toString(),
                 item.lowStockThreshold.toString(),
                 formatMwkAmount(item.unitPrice),

@@ -1,5 +1,6 @@
 package com.example.inventory.data
 
+import com.example.inventory.util.formatMwk
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,6 +40,33 @@ class InventoryRepository @Inject constructor(
     suspend fun deleteItem(item: InventoryItem, actorName: String) {
         inventoryDao.delete(item)
         logAction(item.name, "Deleted", "Removed from inventory", actorName)
+    }
+
+    /**
+     * Reconciles a physical count against the running quantity. A closing count below opening
+     * is treated as sales (qty sold * unit price = amount); a closing count at or above opening
+     * means stock was added without being logged as a restock, so it's noted as such rather than
+     * reported as zero-value sales.
+     */
+    suspend fun recordStockTake(
+        item: InventoryItem,
+        openingStock: Int,
+        closingStock: Int,
+        actorName: String,
+    ) {
+        val updated = item.copy(quantity = closingStock, lastUpdated = System.currentTimeMillis())
+        inventoryDao.update(updated)
+
+        val delta = closingStock - openingStock
+        val unitLabel = item.unit.ifBlank { InventoryItem.DEFAULT_UNIT }
+        val detail = if (delta < 0) {
+            val quantitySold = -delta
+            val amount = quantitySold * item.unitPrice
+            "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantitySold · ${formatMwk(amount)}"
+        } else {
+            "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
+        }
+        logAction(item.name, "Stock Take", detail, actorName)
     }
 
     private suspend fun logAction(

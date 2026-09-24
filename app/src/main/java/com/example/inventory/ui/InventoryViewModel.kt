@@ -135,6 +135,7 @@ class InventoryViewModel @Inject constructor(
         lowStockThreshold: Int,
         unitPrice: Double,
         photoPath: String? = null,
+        unit: String = InventoryItem.DEFAULT_UNIT,
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
@@ -147,9 +148,18 @@ class InventoryViewModel @Inject constructor(
                     lowStockThreshold = lowStockThreshold,
                     unitPrice = unitPrice,
                     photoPath = photoPath,
+                    unit = unit,
                 ),
                 actorName = actor.name,
             )
+        }
+    }
+
+    /** Reconciles a physical count: closing stock becomes the item's new quantity. */
+    fun recordStockTake(item: InventoryItem, openingStock: Int, closingStock: Int) {
+        val actor = sessionManager.currentUser.value ?: return
+        viewModelScope.launch {
+            repository.recordStockTake(item, openingStock, closingStock, actorName = actor.name)
         }
     }
 

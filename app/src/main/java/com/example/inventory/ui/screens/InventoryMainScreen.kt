@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Remove
@@ -96,6 +97,7 @@ fun InventoryMainScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var editingItem by remember { mutableStateOf<InventoryItem?>(null) }
+    var stockTakeItem by remember { mutableStateOf<InventoryItem?>(null) }
     var isAdding by remember { mutableStateOf(false) }
     var showAuditLog by remember { mutableStateOf(false) }
     var showShareMenu by remember { mutableStateOf(false) }
@@ -249,6 +251,7 @@ fun InventoryMainScreen(
                             modifier = Modifier.animateItem(),
                             onClick = { editingItem = item },
                             onAdjust = { delta -> viewModel.adjustQuantity(item, delta) },
+                            onStockTake = { stockTakeItem = item },
                         )
                     }
                 }
@@ -262,8 +265,8 @@ fun InventoryMainScreen(
             role = role,
             onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, _ ->
-                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath)
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit ->
+                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit)
                 isAdding = false
             },
             onDelete = null,
@@ -276,7 +279,7 @@ fun InventoryMainScreen(
             role = role,
             onImportImage = viewModel::importImage,
             onDismiss = { editingItem = null },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit ->
                 viewModel.updateItem(
                     previous = item,
                     updated = item.copy(
@@ -287,6 +290,7 @@ fun InventoryMainScreen(
                         lowStockThreshold = threshold,
                         unitPrice = price,
                         photoPath = photoPath,
+                        unit = unit,
                         lastUpdated = System.currentTimeMillis(),
                     ),
                     receiptPath = receiptPath,
@@ -306,6 +310,17 @@ fun InventoryMainScreen(
 
     if (showAuditLog) {
         AuditLogSheet(entries = uiState.auditLog, onDismiss = { showAuditLog = false })
+    }
+
+    stockTakeItem?.let { item ->
+        StockTakeDialog(
+            item = item,
+            onDismiss = { stockTakeItem = null },
+            onSave = { openingStock, closingStock ->
+                viewModel.recordStockTake(item, openingStock, closingStock)
+                stockTakeItem = null
+            },
+        )
     }
 }
 
@@ -485,6 +500,7 @@ private fun InventoryItemRow(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onAdjust: (Int) -> Unit,
+    onStockTake: () -> Unit,
 ) {
     Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
         Row(
@@ -514,6 +530,9 @@ private fun InventoryItemRow(
                 )
                 Spacer(Modifier.width(4.dp))
                 StatusBadge(item)
+            }
+            IconButton(onClick = onStockTake) {
+                Icon(Icons.Default.Assignment, contentDescription = "Stock take for ${item.name}")
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { onAdjust(-1) }, enabled = item.quantity > 0) {
