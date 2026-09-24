@@ -16,9 +16,9 @@ class InventoryRepository @Inject constructor(
 
     suspend fun getItem(id: Long): InventoryItem? = inventoryDao.getById(id)
 
-    suspend fun addItem(item: InventoryItem, actorName: String) {
+    suspend fun addItem(item: InventoryItem, actorName: String, receiptPath: String? = null) {
         inventoryDao.upsert(item)
-        logAction(item.name, "Created", "Added with quantity ${item.quantity}", actorName)
+        logAction(item.name, "Created", "Added with quantity ${item.quantity}", actorName, receiptPath)
         if (item.isLowStock) lowStockNotifier.notifyLowStock(item)
     }
 
@@ -101,9 +101,12 @@ class InventoryRepository @Inject constructor(
                 detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · " +
                     "Lost $quantityLost to ${reason.label} — no sale recorded"
             }
-        } else {
+        } else if (delta > 0) {
             profit = null
             detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
+        } else {
+            profit = null
+            detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · No change"
         }
         val entryId = logAction(item.name, "Stock Take", detail, actorName, profit = profit)
         if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)

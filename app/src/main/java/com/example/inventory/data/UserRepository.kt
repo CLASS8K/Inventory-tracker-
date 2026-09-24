@@ -92,4 +92,16 @@ class UserRepository @Inject constructor(
     suspend fun deleteUser(user: UserProfile) {
         userDao.delete(user)
     }
+
+    /** Mirrors [canDeleteUser]'s protection — demoting the last admin has the same effect as deleting them. */
+    suspend fun canChangeRole(user: UserProfile, newRole: UserRole): Boolean {
+        if (user.role != UserRole.ADMIN || newRole == UserRole.ADMIN) return true
+        return userDao.adminCount() > 1
+    }
+
+    suspend fun setRole(user: UserProfile, role: UserRole): UserProfile {
+        val updated = user.copy(role = role)
+        userDao.update(updated)
+        return updated
+    }
 }

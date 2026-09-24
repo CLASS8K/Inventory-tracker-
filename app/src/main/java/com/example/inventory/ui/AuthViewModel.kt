@@ -94,6 +94,25 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Promotes a Stock Keeper to Admin, or demotes an Admin back to Stock Keeper. This is the
+     * only way to ever get a second admin — without it, a business whose sole admin is locked
+     * out, leaves, or is deleted would have no way to recover admin access at all.
+     */
+    fun setRole(user: UserProfile, role: UserRole, onResult: (success: Boolean) -> Unit) {
+        viewModelScope.launch {
+            if (userRepository.canChangeRole(user, role)) {
+                val updated = userRepository.setRole(user, role)
+                if (sessionManager.currentUser.value?.id == updated.id) {
+                    sessionManager.updateCurrentUser(updated)
+                }
+                onResult(true)
+            } else {
+                onResult(false)
+            }
+        }
+    }
+
     fun exportBackup(destination: Uri, onResult: (success: Boolean) -> Unit) {
         viewModelScope.launch {
             val success = runCatching { backupManager.exportTo(destination) }.isSuccess

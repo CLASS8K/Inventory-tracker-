@@ -148,6 +148,7 @@ class InventoryViewModel @Inject constructor(
         unit: String = InventoryItem.DEFAULT_UNIT,
         costPrice: Double = 0.0,
         supplierId: Long? = null,
+        receiptPath: String? = null,
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
@@ -165,6 +166,7 @@ class InventoryViewModel @Inject constructor(
                     supplierId = supplierId,
                 ),
                 actorName = actor.name,
+                receiptPath = receiptPath,
             )
         }
     }
@@ -225,7 +227,7 @@ class InventoryViewModel @Inject constructor(
         }
     }
 
-    /** Quick + tap on an item card to restock; both roles may do this, and it earns XP. */
+    /** Quick + tap on an item card to restock; both roles may do this, but only Stock Keepers earn XP for it. */
     fun adjustQuantity(item: InventoryItem, delta: Int) {
         val actor = sessionManager.currentUser.value ?: return
         val newQuantity = (item.quantity + delta).coerceAtLeast(0)
@@ -236,7 +238,7 @@ class InventoryViewModel @Inject constructor(
                 updated = item.copy(quantity = newQuantity, lastUpdated = System.currentTimeMillis()),
                 actorName = actor.name,
             )
-            if (delta > 0) {
+            if (delta > 0 && actor.role == UserRole.STOCK_KEEPER) {
                 awardRestockXp(actor)
             }
         }

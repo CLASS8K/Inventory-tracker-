@@ -317,8 +317,10 @@ fun InventoryMainScreen(
             onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit, costPrice, supplierId ->
-                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit, costPrice, supplierId)
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId ->
+                viewModel.addItem(
+                    name, sku, category, quantity, threshold, price, photoPath, unit, costPrice, supplierId, receiptPath,
+                )
                 isAdding = false
             },
             onDelete = null,
@@ -574,9 +576,23 @@ private fun callSupplier(context: Context, phone: String) {
 }
 
 private fun whatsAppSupplier(context: Context, phone: String) {
-    val digits = phone.filter { it.isDigit() }
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits"))
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${normalizeForWhatsApp(phone)}"))
     context.startActivity(intent)
+}
+
+/**
+ * wa.me requires E.164 (country code, no leading 0) or it shows "invalid number" and the link
+ * never opens. Suppliers are entered in the locally familiar format (e.g. "0991234567"), so
+ * normalize that specific case for this app's market (Malawi, +265) instead of sending it
+ * straight through. A number that already looks like it has a country code is left alone.
+ */
+private fun normalizeForWhatsApp(phone: String): String {
+    val digits = phone.filter { it.isDigit() }
+    return when {
+        digits.startsWith("265") -> digits
+        digits.startsWith("0") -> "265" + digits.removePrefix("0")
+        else -> digits
+    }
 }
 
 private fun buildReport(items: List<InventoryItem>, title: String, totalValue: Double?): String = buildString {

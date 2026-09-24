@@ -48,6 +48,11 @@ class BackupManager @Inject constructor(
 
             if (!isValidBackup(staging)) return@withContext ImportResult.InvalidFile
 
+            // Close Room's connection before swapping the file out from under it — otherwise a
+            // write from an in-flight coroutine (e.g. a quick sell tap) can race the overwrite
+            // and corrupt or partially lose the restore. No further queries can land after this;
+            // the required app restart is what reopens the database on the restored file.
+            database.close()
             staging.copyTo(dbFile, overwrite = true)
             // The restored file won't match any stale WAL/SHM sidecar; drop them so Room
             // reads the restored file as-is on the next (post-restart) open.

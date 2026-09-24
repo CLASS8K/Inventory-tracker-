@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -73,6 +74,8 @@ fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewMo
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<UserProfile?>(null) }
     var deleteBlocked by remember { mutableStateOf(false) }
+    var pendingRoleChange by remember { mutableStateOf<UserProfile?>(null) }
+    var roleChangeBlocked by remember { mutableStateOf(false) }
     var pendingPinReset by remember { mutableStateOf<UserProfile?>(null) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
     var restoreComplete by remember { mutableStateOf(false) }
@@ -197,6 +200,10 @@ fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewMo
                                 deleteBlocked = false
                             },
                             onResetPin = { pendingPinReset = user },
+                            onToggleRole = {
+                                pendingRoleChange = user
+                                roleChangeBlocked = false
+                            },
                         )
                     }
                     AdminTab.SUPPLIERS -> items(suppliers, key = { it.id }) { supplier ->
@@ -251,6 +258,44 @@ fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewMo
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null; deleteBlocked = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    pendingRoleChange?.let { user ->
+        val newRole = if (user.role == UserRole.ADMIN) UserRole.STOCK_KEEPER else UserRole.ADMIN
+        AlertDialog(
+            onDismissRequest = { pendingRoleChange = null; roleChangeBlocked = false },
+            title = {
+                Text(
+                    if (newRole == UserRole.ADMIN) "Promote ${user.name} to Admin?" else "Demote ${user.name} to Stock Keeper?",
+                )
+            },
+            text = {
+                Text(
+                    when {
+                        roleChangeBlocked ->
+                            "Nkhokwe needs at least one admin. Promote another user before demoting the last one."
+                        newRole == UserRole.ADMIN ->
+                            "${user.name} will get full control: pricing, thresholds, item deletion, user management, and backups."
+                        else ->
+                            "${user.name} will lose admin access and go back to restocking only."
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.setRole(user, newRole) { success ->
+                        if (success) {
+                            pendingRoleChange = null
+                        } else {
+                            roleChangeBlocked = true
+                        }
+                    }
+                }) { Text(if (newRole == UserRole.ADMIN) "Promote" else "Demote") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRoleChange = null; roleChangeBlocked = false }) { Text("Cancel") }
             },
         )
     }
@@ -377,7 +422,13 @@ private fun ResetPinDialog(user: UserProfile, onDismiss: () -> Unit, onReset: (S
 }
 
 @Composable
-private fun UserRow(user: UserProfile, rank: Int?, onDelete: () -> Unit, onResetPin: () -> Unit) {
+private fun UserRow(
+    user: UserProfile,
+    rank: Int?,
+    onDelete: () -> Unit,
+    onResetPin: () -> Unit,
+    onToggleRole: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors()) {
         Row(
             modifier = Modifier
@@ -396,6 +447,16 @@ private fun UserRow(user: UserProfile, rank: Int?, onDelete: () -> Unit, onReset
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            IconButton(onClick = onToggleRole) {
+                Icon(
+                    Icons.Default.SwapHoriz,
+                    contentDescription = if (user.role == UserRole.ADMIN) {
+                        "Demote ${user.name} to Stock Keeper"
+                    } else {
+                        "Promote ${user.name} to Admin"
+                    },
+                )
             }
             IconButton(onClick = onResetPin) {
                 Icon(Icons.Default.Key, contentDescription = "Reset PIN for ${user.name}")

@@ -48,13 +48,21 @@ class LowStockNotifier @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(item.id.toInt(), notification)
+        NotificationManagerCompat.from(context).notify(notificationId(item.id), notification)
     }
 
     /** Called when a fix (e.g. undoing a bad stock take) takes an item back out of low stock. */
     fun cancelLowStock(itemId: Long) {
-        NotificationManagerCompat.from(context).cancel(itemId.toInt())
+        NotificationManagerCompat.from(context).cancel(notificationId(itemId))
     }
+
+    /**
+     * Long.hashCode() folds the high and low 32 bits together (id xor (id ushr 32)) rather than
+     * truncating to the low bits like a raw toInt() would — spreads the id across the full Int
+     * range instead of just wrapping once ids exceed Int.MAX_VALUE, so two different items are
+     * far less likely to collide on the same notification id.
+     */
+    private fun notificationId(itemId: Long): Int = itemId.hashCode()
 
     private fun hasPermission(): Boolean {
         val runtimeGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
