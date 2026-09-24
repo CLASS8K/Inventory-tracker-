@@ -19,6 +19,8 @@ data class InventoryItem(
     val unit: String = DEFAULT_UNIT,
     /** What this item cost to acquire — admin-entered, never shown to a Stock Keeper. */
     val costPrice: Double = 0.0,
+    /** Who to reorder this from — a soft reference to [Supplier.id], no FK constraint. */
+    val supplierId: Long? = null,
 ) {
     val isLowStock: Boolean
         get() = quantity <= lowStockThreshold

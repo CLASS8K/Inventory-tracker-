@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.inventory.data.AuditLogDao
 import com.example.inventory.data.InventoryDao
 import com.example.inventory.data.InventoryDatabase
+import com.example.inventory.data.SupplierDao
 import com.example.inventory.data.UserDao
 import dagger.Module
 import dagger.Provides
@@ -31,4 +32,7 @@ object DatabaseModule {
 
     @Provides
     fun provideUserDao(database: InventoryDatabase): UserDao = database.userDao()
+
+    @Provides
+    fun provideSupplierDao(database: InventoryDatabase): SupplierDao = database.supplierDao()
 }

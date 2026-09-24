@@ -37,7 +37,8 @@ Every push to `main` (and manual runs via the Actions tab) builds a debug APK in
 - **Cost price is admin-only, everywhere** — a Stock Keeper never sees the Cost Price field at all (not disabled, not rendered), never sees a Profit figure on a stock take, and never sees the Profit line on an audit log entry. Selling price and revenue are visible to both roles (a barman already knows what a drink sells for); only the margin is withheld
 - **Receipt photos** — either role can attach a photo of the supplier receipt/delivery note to a restock; it's saved on that audit log entry, viewable full-size from the audit log
 - **Stock take** — reconcile a physical count against the running total: enter opening and closing stock for an item and it computes quantity sold, revenue, and (Admins only) profit against the cost price. Closing ≥ opening is treated as an unlogged restock, not a sale, so it's never misreported as MWK 0 in revenue. When the count comes in lower than opening, you pick why — Sold, Spillage/Breakage, Complimentary/Staff, Theft/Loss, or Other — and only "Sold" counts as revenue; the rest are logged as a cost with zero revenue, so a dropped bottle or a comped drink can never inflate the numbers. Logged as a "Stock Take" audit entry; either role can record one
-- **Low-stock banner** — animated banner when any item is at or under its threshold
+- **Low-stock banner** — animated banner when any item is at or under its threshold; tap to expand it and see each low-stock item's linked supplier with one-tap Call / WhatsApp buttons to reorder
+- **Supplier directory** (admin only) — a lightweight contacts list (name, phone, notes) managed from the Admin Panel's Suppliers tab; items can be linked to a supplier from the item editor's "Reorder from" picker, or a new supplier can be added inline without leaving the dialog. Deliberately not a purchase-order system — no order quantities, no delivery tracking, no approval flow — just "who do I call when this runs low," which is what a single-bar client actually needs day to day
 - **Share / export report** — share a full or low-stock-only inventory report through the Android share sheet, or export the full inventory as a CSV file for bookkeeping/reconciliation
 - **Audit log** — every create/update/delete is recorded with actor, action badge, and a relative timestamp
 - **Auto sign-out** — a session is signed out automatically after 5 minutes backgrounded, so a shared device doesn't stay logged in as whoever last used it
@@ -54,10 +55,12 @@ app/src/main/java/com/example/
     data/
       InventoryItem.kt            Room @Entity
       UserProfile.kt               Room @Entity — role, avatar, PIN hash, XP/level
-      InventoryDao.kt / AuditLogDao.kt / UserDao.kt
-      InventoryDatabase.kt         Room @Database (v6 — fallbackToDestructiveMigration pre-release)
+      Supplier.kt                    Room @Entity — name, phone, notes
+      InventoryDao.kt / AuditLogDao.kt / UserDao.kt / SupplierDao.kt
+      InventoryDatabase.kt         Room @Database (v7 — fallbackToDestructiveMigration pre-release)
       InventoryRepository.kt        Combines DAOs, writes audit log entries on every mutation
       UserRepository.kt             User CRUD, PIN hashing (salted SHA-256), XP awards
+      SupplierRepository.kt          Supplier CRUD
       SessionManager.kt             In-memory signed-in user for the process
       PinHasher.kt                  Salted SHA-256 PIN hashing
       BackupManager.kt              Exports/restores the on-device Room database as a file
@@ -68,11 +71,12 @@ app/src/main/java/com/example/
     ui/
       InventoryViewModel.kt        Exposes InventoryUiState (items, search, sort, filter, dashboard totals)
       AuthViewModel.kt              Exposes AuthUiState (users, current user, leaderboard)
+      SupplierViewModel.kt          Exposes the supplier list; create/update/delete
       screens/
         SignInScreen.kt             Profile picker, PIN pad, user creation
-        AdminPanelScreen.kt          User management + restocker leaderboard
-        InventoryMainScreen.kt       Dashboard + search + filters + sort + list + FAB
-        ItemEditorDialog.kt          Add/edit form, fields locked down for Stock Keepers
+        AdminPanelScreen.kt          User management + restocker leaderboard, Suppliers tab (add/edit/remove)
+        InventoryMainScreen.kt       Dashboard + search + filters + sort + list + FAB + low-stock supplier call/WhatsApp
+        ItemEditorDialog.kt          Add/edit form, fields locked down for Stock Keepers, supplier picker
         StockTakeDialog.kt            Opening/closing count → qty sold + revenue
         AuditLogSheet.kt              Audit log bottom sheet
     util/
@@ -90,7 +94,9 @@ app/src/main/java/com/example/
 - Most of this was written without ever being able to run a real Gradle build locally (same network restriction — no Android SDK reachable in that sandbox). It's since been confirmed to compile via the `build-apk.yml` CI run on [#2](https://github.com/CLASS8K/Inventory-tracker-/pull/2), but any future changes made the same way should get the same CI confirmation before being called done.
 - Backup files exported from the Admin Panel are a raw, unencrypted copy of the SQLite database — PINs inside are salted-hashed (not plaintext), but item data, prices, and names are not. Treat a backup file with the same care as the data it contains; it isn't meant to leave the business.
 - Fraunces is loaded as a downloadable Google Font at runtime (via Google Play services), not bundled into the APK. On a device without Play services, or offline on first launch, text falls back to the system font until it downloads. This is the same rebuild-without-a-real-build caveat above — the `font_certs.xml` cert hashes are Google's well-known, unchanging downloadable-fonts certs (copied from `android/compose-samples`), not something specific to this app.
-- The Room schema is now at v6 (`user_profiles` + `actorName` on `audit_log`, PIN-lockout columns, item/receipt photo paths, `unit` on `inventory_items`, then `costPrice`/`profit`). There's no migration path — `fallbackToDestructiveMigration` wipes local data on upgrade. Fine pre-release; revisit before a real release with user data on device. A restored backup from a different schema version is rejected outright rather than silently wiped (see `BackupManager.isValidBackup`) — the version check has to be kept in sync with `DB_VERSION` by hand since there's no migration path to lean on instead.
+- The Room schema is now at v7 (`user_profiles` + `actorName` on `audit_log`, PIN-lockout columns, item/receipt photo paths, `unit` on `inventory_items`, `costPrice`/`profit`, then the `suppliers` table + `supplierId` on `inventory_items`). There's no migration path — `fallbackToDestructiveMigration` wipes local data on upgrade. Fine pre-release; revisit before a real release with user data on device. A restored backup from a different schema version is rejected outright rather than silently wiped (see `BackupManager.isValidBackup`) — the version check has to be kept in sync with `DB_VERSION` by hand since there's no migration path to lean on instead.
+- Supplier tracking is deliberately minimal: a name, phone number, and notes, linked to an item. There's no purchase-order flow, no order history, no delivery/received-quantity tracking, and no reorder quantity suggestion — it answers "who do I call," not "what did I order and when does it arrive." If that's ever needed, it's a separate, larger feature.
+- Cash/till reconciliation is explicitly out of scope for this app — that's an accounting/POS concern, not inventory. Flagging this as a deliberate non-goal so it doesn't read as an oversight.
 - PINs are 4 digits, hashed with a per-user salted SHA-256 (not bcrypt/Argon2) and stored locally — appropriate for a shared-device staff gate, not a substitute for real authentication if this app ever handles more sensitive data. 5 wrong attempts locks the account for 60 seconds (`UserProfile.MAX_PIN_ATTEMPTS` / `LOCKOUT_DURATION_MILLIS`); an Admin can always clear a lock via "reset PIN" in the Admin Panel.
 - Cost price and profit are role-gated in the UI (never rendered to a Stock Keeper), but they still live in plaintext in the local database and in any backup file exported from the Admin Panel — same caveat as the backup-file note above, just worth restating since this is the specific figure that was asked to stay hidden from staff. CSV export intentionally does *not* include cost price or profit, since CSV export is available to both roles.
 - Item/receipt photos live in app-private storage (`filesDir/images/`), *not* inside the backup file — `BackupManager` only copies the SQLite database. Restoring an old backup can leave `photoPath`/`receiptPath` values pointing at images that no longer exist on this device (the UI just shows a blank thumbnail, it won't crash), and photos added after a backup was taken aren't in it. Worth fixing — bundle the images directory into the backup, e.g. as a zip — before this is relied on as the only backup strategy.

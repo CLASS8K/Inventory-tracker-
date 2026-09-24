@@ -2,6 +2,7 @@ package com.example.inventory.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +13,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +33,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Remove
@@ -69,12 +75,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
+import com.example.inventory.data.Supplier
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRole
 import com.example.inventory.ui.ALL_CATEGORIES
 import com.example.inventory.ui.InventoryUiState
 import com.example.inventory.ui.InventoryViewModel
 import com.example.inventory.ui.SortOption
+import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.util.buildInventoryCsv
 import com.example.inventory.util.formatMwk
 import kotlinx.coroutines.Dispatchers
@@ -89,10 +97,12 @@ import java.util.Locale
 @Composable
 fun InventoryMainScreen(
     viewModel: InventoryViewModel,
+    supplierViewModel: SupplierViewModel,
     onOpenAdminPanel: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val suppliers by supplierViewModel.suppliers.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -233,7 +243,7 @@ fun InventoryMainScreen(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
-                LowStockBanner(items = uiState.lowStockItems)
+                LowStockBanner(items = uiState.lowStockItems, suppliers = suppliers)
             }
 
             val filtered = uiState.filteredItems
@@ -263,10 +273,12 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = null,
             role = role,
+            suppliers = suppliers,
+            onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit, costPrice ->
-                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit, costPrice)
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, _, unit, costPrice, supplierId ->
+                viewModel.addItem(name, sku, category, quantity, threshold, price, photoPath, unit, costPrice, supplierId)
                 isAdding = false
             },
             onDelete = null,
@@ -277,9 +289,11 @@ fun InventoryMainScreen(
         ItemEditorDialog(
             item = item,
             role = role,
+            suppliers = suppliers,
+            onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
             onDismiss = { editingItem = null },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId ->
                 viewModel.updateItem(
                     previous = item,
                     updated = item.copy(
@@ -292,6 +306,7 @@ fun InventoryMainScreen(
                         photoPath = photoPath,
                         unit = unit,
                         costPrice = costPrice,
+                        supplierId = supplierId,
                         lastUpdated = System.currentTimeMillis(),
                     ),
                     receiptPath = receiptPath,
@@ -423,31 +438,93 @@ private fun CategoryChips(
 }
 
 @Composable
-private fun LowStockBanner(items: List<InventoryItem>) {
+private fun LowStockBanner(items: List<InventoryItem>, suppliers: List<Supplier>) {
+    var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val supplierById = remember(suppliers) { suppliers.associateBy { it.id } }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clickable { expanded = !expanded },
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(12.dp),
-        ) {
-            Icon(
-                Icons.Default.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-            )
-            Text(
-                text = "${items.size} item${if (items.size == 1) "" else "s"} low on stock",
-                color = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .weight(1f),
-            )
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    text = "${items.size} item${if (items.size == 1) "" else "s"} low on stock",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .weight(1f),
+                )
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    items.forEach { item ->
+                        val supplier = item.supplierId?.let { supplierById[it] }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${item.name} · ${item.quantity} left",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    text = supplier?.name ?: "No supplier set — add one from the item's editor",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                            if (supplier != null && supplier.phone.isNotBlank()) {
+                                IconButton(onClick = { callSupplier(context, supplier.phone) }) {
+                                    Icon(
+                                        Icons.Default.Call,
+                                        contentDescription = "Call ${supplier.name}",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                                IconButton(onClick = { whatsAppSupplier(context, supplier.phone) }) {
+                                    Icon(
+                                        Icons.Default.Chat,
+                                        contentDescription = "WhatsApp ${supplier.name}",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+private fun callSupplier(context: Context, phone: String) {
+    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone"))
+    context.startActivity(intent)
+}
+
+private fun whatsAppSupplier(context: Context, phone: String) {
+    val digits = phone.filter { it.isDigit() }
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$digits"))
+    context.startActivity(intent)
 }
 
 private fun buildReport(items: List<InventoryItem>, title: String, totalValue: Double?): String = buildString {

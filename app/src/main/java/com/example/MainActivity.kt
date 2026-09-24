@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.inventory.data.UserRole
 import com.example.inventory.ui.AuthViewModel
 import com.example.inventory.ui.InventoryViewModel
+import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.ui.screens.AdminPanelScreen
 import com.example.inventory.ui.screens.InventoryMainScreen
 import com.example.inventory.ui.screens.SignInScreen
@@ -55,6 +56,7 @@ class MainActivity : ComponentActivity() {
 private fun NkhokweApp() {
     val authViewModel: AuthViewModel = hiltViewModel()
     val inventoryViewModel: InventoryViewModel = hiltViewModel()
+    val supplierViewModel: SupplierViewModel = hiltViewModel()
     val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -84,10 +86,11 @@ private fun NkhokweApp() {
 
     var showAdminPanel by remember { mutableStateOf(false) }
     if (showAdminPanel && currentUser?.role == UserRole.ADMIN) {
-        AdminPanelScreen(viewModel = authViewModel, onBack = { showAdminPanel = false })
+        AdminPanelScreen(viewModel = authViewModel, supplierViewModel = supplierViewModel, onBack = { showAdminPanel = false })
     } else {
         InventoryMainScreen(
             viewModel = inventoryViewModel,
+            supplierViewModel = supplierViewModel,
             onOpenAdminPanel = { showAdminPanel = true },
             onSignOut = {
                 showAdminPanel = false

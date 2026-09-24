@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Receipt
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
+import com.example.inventory.data.Supplier
 import com.example.inventory.data.UserRole
 import java.io.File
 
@@ -49,6 +51,8 @@ import java.io.File
 fun ItemEditorDialog(
     item: InventoryItem?,
     role: UserRole,
+    suppliers: List<Supplier>,
+    onCreateSupplier: (name: String, phone: String, onResult: (Supplier) -> Unit) -> Unit,
     onImportImage: (Uri, (String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (
@@ -62,6 +66,7 @@ fun ItemEditorDialog(
         receiptPath: String?,
         unit: String,
         costPrice: Double,
+        supplierId: Long?,
     ) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
@@ -75,6 +80,8 @@ fun ItemEditorDialog(
     var photoPath by remember { mutableStateOf(item?.photoPath) }
     var receiptPath by remember { mutableStateOf<String?>(null) }
     var unit by remember { mutableStateOf(item?.unit ?: InventoryItem.DEFAULT_UNIT) }
+    var supplierId by remember { mutableStateOf(item?.supplierId) }
+    var showCreateSupplier by remember { mutableStateOf(false) }
 
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
     val canEditConfig = role == UserRole.ADMIN
@@ -206,6 +213,37 @@ fun ItemEditorDialog(
                             .padding(top = 8.dp),
                     )
                 }
+                if (canEditConfig) {
+                    Text(
+                        text = "Reorder from",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(top = 4.dp),
+                    ) {
+                        FilterChip(
+                            selected = supplierId == null,
+                            onClick = { supplierId = null },
+                            label = { Text("None") },
+                        )
+                        suppliers.forEach { supplier ->
+                            FilterChip(
+                                selected = supplierId == supplier.id,
+                                onClick = { supplierId = supplier.id },
+                                label = { Text(supplier.name) },
+                            )
+                        }
+                        FilterChip(
+                            selected = false,
+                            onClick = { showCreateSupplier = true },
+                            label = { Text("+ New") },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        )
+                    }
+                }
                 if (!canEditConfig) {
                     Text(
                         text = "Only Admins can change item details, pricing, or thresholds.",
@@ -236,10 +274,68 @@ fun ItemEditorDialog(
                         receiptPath,
                         unit,
                         costPriceText.toDoubleOrNull() ?: 0.0,
+                        supplierId,
                     )
                 },
             ) {
                 Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
+
+    if (showCreateSupplier) {
+        CreateSupplierDialog(
+            onDismiss = { showCreateSupplier = false },
+            onCreate = { name, phone ->
+                onCreateSupplier(name, phone) { supplier ->
+                    supplierId = supplier.id
+                }
+                showCreateSupplier = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun CreateSupplierDialog(onDismiss: () -> Unit, onCreate: (name: String, phone: String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New supplier") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone (for call / WhatsApp)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = { onCreate(name.trim(), phone.trim()) },
+            ) {
+                Text("Add supplier")
             }
         },
         dismissButton = {

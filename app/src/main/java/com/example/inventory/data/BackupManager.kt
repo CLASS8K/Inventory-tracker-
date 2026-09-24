@@ -24,7 +24,7 @@ class BackupManager @Inject constructor(
     private val database: InventoryDatabase,
 ) {
     private val dbFile: File get() = context.getDatabasePath(DB_NAME)
-    private val requiredTables = setOf("inventory_items", "user_profiles", "audit_log")
+    private val requiredTables = setOf("inventory_items", "user_profiles", "audit_log", "suppliers")
 
     /** Merges the write-ahead log into the main database file, then copies it to [destination]. */
     suspend fun exportTo(destination: Uri) = withContext(Dispatchers.IO) {
