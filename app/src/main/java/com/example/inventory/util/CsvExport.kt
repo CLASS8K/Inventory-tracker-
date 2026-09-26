@@ -11,9 +11,16 @@ private val CSV_HEADER = listOf(
     "Unit Price (MWK)", "Total Value (MWK)", "Last Updated",
 )
 
+/**
+ * A fresh formatter per call, shared by every CSV export in this file so all exported timestamps
+ * read the same way — [SimpleDateFormat] isn't thread-safe, so this is a factory, not a constant,
+ * in case two exports are ever in flight on different coroutines at once.
+ */
+private fun csvTimestampFormat(): SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+
 /** Full inventory as CSV — cost/accounting reconciliation, not the on-screen filtered view. */
 fun buildInventoryCsv(items: List<InventoryItem>): String {
-    val timestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+    val timestampFormat = csvTimestampFormat()
     return buildString {
         appendLine(CSV_HEADER.joinToString(",") { escapeCsvField(it) })
         for (item in items) {
@@ -42,7 +49,7 @@ private val SALES_CSV_HEADER = listOf(
  * against a printed till slip or bank deposit, not the on-screen truncated detail text.
  */
 fun buildSalesCsv(entries: List<AuditLogEntry>): String {
-    val timestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+    val timestampFormat = csvTimestampFormat()
     return buildString {
         appendLine(SALES_CSV_HEADER.joinToString(",") { escapeCsvField(it) })
         for (entry in entries) {

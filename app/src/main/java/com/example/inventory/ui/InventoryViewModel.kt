@@ -81,13 +81,18 @@ data class InventoryUiState(
     val totalPotentialProfit: Double
         get() = items.sumOf { it.quantity * (it.unitPrice - it.costPrice) }
 
+    /** Today's audit entries, filtered once and reused by every "today's ___" figure below,
+     * rather than each one re-scanning the full (ever-growing) audit log on its own. */
+    private val todaysEntries: List<AuditLogEntry>
+        get() = auditLog.filter { isSameDay(it.timestamp) }
+
     /**
      * Every audit entry that represents money actually taken in today — a quick sell tap or a
      * Stock Take reconciled as [StockLossReason.SOLD] — as opposed to a restock, edit, or a loss
-     * (spillage/comp/theft) that [AuditLogEntry.revenue] is deliberately null for. Admin-only.
+     * (spillage/comp/theft), per [AuditLogEntry.isSale]. Admin-only.
      */
     val todaysSales: List<AuditLogEntry>
-        get() = auditLog.filter { it.revenue != null && isSameDay(it.timestamp) }
+        get() = todaysEntries.filter { it.isSale }
 
     val todaysRevenue: Double get() = todaysSales.sumOf { it.revenue ?: 0.0 }
     val todaysProfit: Double get() = todaysSales.sumOf { it.profit ?: 0.0 }
@@ -108,13 +113,11 @@ data class InventoryUiState(
 
     /**
      * Today's Stock Take entries logged as a loss (spillage, comp, theft, other) rather than a
-     * sale — [AuditLogEntry.revenue] is always null for these, only [AuditLogEntry.profit] is
-     * set, and it's already negative (a cost), so this is the positive cost figure for display.
+     * sale, per [AuditLogEntry.isLoss] — [AuditLogEntry.profit] is already negative (a cost) for
+     * these, so this is the positive cost figure for display.
      */
     val todaysWastageCost: Double
-        get() = -auditLog
-            .filter { it.action == "Stock Take" && it.revenue == null && (it.profit ?: 0.0) < 0 && isSameDay(it.timestamp) }
-            .sumOf { it.profit ?: 0.0 }
+        get() = -todaysEntries.filter { it.isLoss }.sumOf { it.profit ?: 0.0 }
 }
 
 @HiltViewModel

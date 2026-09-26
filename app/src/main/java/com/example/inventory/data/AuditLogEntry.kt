@@ -25,4 +25,13 @@ data class AuditLogEntry(
      * this column across a day never counts a loss as money taken in.
      */
     val revenue: Double? = null,
-)
+) {
+    /** An entry that represents money actually taken in — a quick sell tap or a Stock Take
+     * reconciled as [StockLossReason.SOLD]. The single source of truth for "was this a sale",
+     * so callers never have to re-derive it by combining [action]/[revenue]/[profit] themselves. */
+    val isSale: Boolean get() = revenue != null
+
+    /** A Stock Take logged as a loss (spillage, comp, theft, other) rather than a sale — never
+     * true for [isSale] entries, since those always carry a non-null [revenue] instead. */
+    val isLoss: Boolean get() = action == "Stock Take" && revenue == null && (profit ?: 0.0) < 0
+}
