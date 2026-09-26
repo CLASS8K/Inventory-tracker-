@@ -315,7 +315,14 @@ fun InventoryMainScreen(
                 EmptyState(hasSearch = uiState.searchQuery.isNotBlank())
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    // Extra bottom padding when the FAB is showing (admin only) — otherwise the
+                    // floating "+" button sits directly on top of the last item row's controls.
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 8.dp,
+                        bottom = if (uiState.isAdmin) 88.dp else 8.dp,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -442,35 +449,44 @@ private fun DashboardRow(uiState: InventoryUiState) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
+    // Two per row, not four across — a currency string like "MWK 65,000.00" needs real width;
+    // crammed four-wide it was ellipsizing down to "MW..." even after fixing the earlier
+    // line-wrap bug, since there was nowhere left to wrap or shrink to.
     AnimatedVisibility(visible = visible, enter = fadeIn(tween(400)) + expandVertically()) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            MetricCard(
-                label = "Total Value",
-                value = formatMwk(uiState.totalValue),
-                modifier = Modifier.weight(1.3f),
-            )
-            MetricCard(
-                label = "Units",
-                value = uiState.totalUnits.toString(),
-                modifier = Modifier.weight(1f),
-            )
-            MetricCard(
-                label = "Low Stock",
-                value = uiState.lowStockItems.size.toString(),
-                modifier = Modifier.weight(1f),
-                emphasize = uiState.lowStockItems.isNotEmpty(),
-            )
-            if (uiState.isAdmin) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 MetricCard(
-                    label = "Potential Profit",
-                    value = formatMwk(uiState.totalPotentialProfit),
-                    modifier = Modifier.weight(1.3f),
+                    label = "Total Value",
+                    value = formatMwk(uiState.totalValue),
+                    modifier = Modifier.weight(1f),
                 )
+                MetricCard(
+                    label = "Units",
+                    value = uiState.totalUnits.toString(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricCard(
+                    label = "Low Stock",
+                    value = uiState.lowStockItems.size.toString(),
+                    modifier = Modifier.weight(1f),
+                    emphasize = uiState.lowStockItems.isNotEmpty(),
+                )
+                if (uiState.isAdmin) {
+                    MetricCard(
+                        label = "Potential Profit",
+                        value = formatMwk(uiState.totalPotentialProfit),
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
     }
@@ -718,68 +734,75 @@ private fun InventoryItemRow(
     onStockTake: () -> Unit,
 ) {
     Card(onClick = onClick, modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (item.photoPath != null) {
-                AsyncImage(
-                    model = File(item.photoPath),
-                    contentDescription = "${item.name} photo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
-                )
-                Spacer(Modifier.width(12.dp))
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${item.sku} · ${item.category}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.width(4.dp))
-                StatusBadge(item)
-            }
-            IconButton(onClick = onStockTake) {
-                Icon(Icons.Default.Assignment, contentDescription = "Stock take for ${item.name}")
-            }
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Name/SKU on its own row so it gets the full card width instead of squeezing
+            // against four fixed-width icon/control clusters on one line — that squeeze was
+            // ellipsizing names down to 3-4 characters ("Bra...", "Kuch...", "Mal...").
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .alpha(if (item.quantity > 0) 1f else 0.38f)
-                        .combinedClickable(
-                            enabled = item.quantity > 0,
-                            onClick = onSellOne,
-                            onLongClick = onSellBulk,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Sell 1 (hold to sell a specific quantity)")
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "${item.quantity}", fontWeight = FontWeight.Bold)
-                    Text(
-                        text = formatMwk(item.unitPrice),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (item.photoPath != null) {
+                    AsyncImage(
+                        model = File(item.photoPath),
+                        contentDescription = "${item.name} photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
                     )
+                    Spacer(Modifier.width(12.dp))
                 }
-                IconButton(onClick = onRestock) {
-                    Icon(Icons.Default.Add, contentDescription = "Restock 1")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.name,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "${item.sku} · ${item.category}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    StatusBadge(item)
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onStockTake) {
+                    Icon(Icons.Default.Assignment, contentDescription = "Stock take for ${item.name}")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .alpha(if (item.quantity > 0) 1f else 0.38f)
+                            .combinedClickable(
+                                enabled = item.quantity > 0,
+                                onClick = onSellOne,
+                                onLongClick = onSellBulk,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Sell 1 (hold to sell a specific quantity)")
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "${item.quantity}", fontWeight = FontWeight.Bold)
+                        Text(
+                            text = formatMwk(item.unitPrice),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onRestock) {
+                        Icon(Icons.Default.Add, contentDescription = "Restock 1")
+                    }
                 }
             }
         }
