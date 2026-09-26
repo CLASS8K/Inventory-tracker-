@@ -24,11 +24,9 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -158,9 +156,7 @@ fun ItemEditorDialog(
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                 )
-                ExposedDropdownMenuBox(
-                    expanded = categoryMenuExpanded && canEditConfig && filteredCategorySuggestions.isNotEmpty(),
-                    onExpandedChange = { if (canEditConfig) categoryMenuExpanded = it },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
@@ -174,18 +170,12 @@ fun ItemEditorDialog(
                         label = { Text("Category / drink type") },
                         singleLine = true,
                         enabled = canEditConfig,
-                        trailingIcon = if (canEditConfig) {
-                            { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) }
-                        } else {
-                            null
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    ExposedDropdownMenu(
+                    DropdownMenu(
                         expanded = categoryMenuExpanded && canEditConfig && filteredCategorySuggestions.isNotEmpty(),
                         onDismissRequest = { categoryMenuExpanded = false },
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         filteredCategorySuggestions.forEach { suggestion ->
                             DropdownMenuItem(
