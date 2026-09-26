@@ -52,6 +52,13 @@ import com.example.inventory.data.UserRole
 import com.example.inventory.util.rememberBarcodeScanner
 import java.io.File
 
+/** Default serving unit per category (lowercased) — spirits by the shot, wine by the glass. */
+private val CATEGORY_SERVING_UNITS = mapOf(
+    "spirits" to "Shot",
+    "whisky" to "Shot",
+    "wine" to "Glass",
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemEditorDialog(
@@ -98,12 +105,13 @@ fun ItemEditorDialog(
         categorySuggestions.filter { it.contains(category, ignoreCase = true) }
     }
 
-    // Spirits are poured and priced by the shot, not the bottle — default a new item to that unit
-    // so its selling/cost price are entered per shot, matching how it's actually sold at the bar.
+    // Spirits are poured by the shot and wine by the glass, not sold whole-bottle — default a new
+    // item's unit to how it's actually served, so its selling/cost price are entered on that same
+    // footing rather than one per bottle and the other per serving.
     LaunchedEffect(category) {
-        val isSpirit = category.trim().let { it.equals("Spirits", ignoreCase = true) || it.equals("Whisky", ignoreCase = true) }
-        if (item == null && isSpirit && unit == InventoryItem.DEFAULT_UNIT) {
-            unit = "Shot"
+        val servingUnit = CATEGORY_SERVING_UNITS[category.trim().lowercase()]
+        if (item == null && servingUnit != null && unit == InventoryItem.DEFAULT_UNIT) {
+            unit = servingUnit
         }
     }
 
