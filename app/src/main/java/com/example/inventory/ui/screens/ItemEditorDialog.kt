@@ -6,6 +6,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
@@ -42,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -205,7 +208,24 @@ fun ItemEditorDialog(
                         label = { Text("Category / drink type") },
                         singleLine = true,
                         enabled = canEditConfig,
-                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = if (canEditConfig && category.isNotEmpty()) {
+                            {
+                                IconButton(onClick = {
+                                    category = ""
+                                    categoryMenuExpanded = true
+                                }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear category")
+                                }
+                            }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // Tapping in shows every suggestion right away — previously the dropdown
+                            // only opened once you started typing, and clearing a wrong pick meant
+                            // backspacing character by character instead of one tap.
+                            .onFocusChanged { focusState -> if (focusState.isFocused) categoryMenuExpanded = true },
                     )
                     DropdownMenu(
                         expanded = categoryMenuExpanded && canEditConfig && filteredCategorySuggestions.isNotEmpty(),
@@ -232,7 +252,11 @@ fun ItemEditorDialog(
                     )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(top = 4.dp),
+                        // 5 unit choices don't all fit on a narrow phone in an unscrollable Row — the
+                        // last chip (Shot) was getting clipped at the screen edge instead of wrapping.
+                        modifier = Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(top = 4.dp),
                     ) {
                         InventoryItem.UNIT_CHOICES.forEach { choice ->
                             FilterChip(

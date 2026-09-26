@@ -554,8 +554,12 @@ private fun TodaysSalesByStaff(salesByActor: List<Pair<String, Double>>) {
 
 @Composable
 private fun MetricCard(label: String, value: String, modifier: Modifier = Modifier, emphasize: Boolean = false) {
+    // The card itself still ellipsizes a long figure to keep the 2-up grid from wrapping to a second
+    // line — tapping it shows the same value in full, since a MWK amount can run wider than the card.
+    var showFullValue by remember { mutableStateOf(false) }
+
     Card(
-        modifier = modifier,
+        modifier = modifier.clickable { showFullValue = true },
         colors = CardDefaults.cardColors(
             containerColor = if (emphasize) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant,
         ),
@@ -574,6 +578,25 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+
+    if (showFullValue) {
+        AlertDialog(
+            onDismissRequest = { showFullValue = false },
+            title = { Text(label) },
+            text = {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showFullValue = false }) {
+                    Text("Close")
+                }
+            },
+        )
     }
 }
 
