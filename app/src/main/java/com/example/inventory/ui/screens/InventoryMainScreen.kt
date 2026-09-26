@@ -101,6 +101,7 @@ import com.example.inventory.util.buildInventoryCsv
 import com.example.inventory.util.buildSalesCsv
 import com.example.inventory.util.formatMwk
 import com.example.inventory.util.rememberBarcodeScanner
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -164,47 +165,8 @@ fun InventoryMainScreen(
     val role = uiState.currentUser?.role ?: UserRole.STOCK_KEEPER
     val scanSearch = rememberBarcodeScanner(onScanned = viewModel::onSearchQueryChange)
 
-    val csvExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv"),
-    ) { uri ->
-        if (uri != null) {
-            val csv = buildInventoryCsv(uiState.items)
-            coroutineScope.launch {
-                val written = withContext(Dispatchers.IO) {
-                    runCatching {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
-                            ?: error("no output stream")
-                    }.isSuccess
-                }
-                Toast.makeText(
-                    context,
-                    if (written) "CSV exported" else "CSV export failed",
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-    }
-
-    val salesCsvExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/csv"),
-    ) { uri ->
-        if (uri != null) {
-            val csv = buildSalesCsv(uiState.todaysSales)
-            coroutineScope.launch {
-                val written = withContext(Dispatchers.IO) {
-                    runCatching {
-                        context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
-                            ?: error("no output stream")
-                    }.isSuccess
-                }
-                Toast.makeText(
-                    context,
-                    if (written) "CSV exported" else "CSV export failed",
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-    }
+    val csvExportLauncher = rememberCsvExportLauncher(context, coroutineScope) { buildInventoryCsv(uiState.items) }
+    val salesCsvExportLauncher = rememberCsvExportLauncher(context, coroutineScope) { buildSalesCsv(uiState.todaysSales) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -238,8 +200,7 @@ fun InventoryMainScreen(
                                 text = { Text("Export as CSV") },
                                 onClick = {
                                     showShareMenu = false
-                                    val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
-                                    csvExportLauncher.launch("nkhokwe-inventory-$stamp.csv")
+                                    csvExportLauncher.launch("nkhokwe-inventory-${exportFilenameStamp()}.csv")
                                 },
                             )
                             if (uiState.isAdmin) {
@@ -247,8 +208,7 @@ fun InventoryMainScreen(
                                     text = { Text("Export today's sales as CSV") },
                                     onClick = {
                                         showShareMenu = false
-                                        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
-                                        salesCsvExportLauncher.launch("nkhokwe-sales-$stamp.csv")
+                                        salesCsvExportLauncher.launch("nkhokwe-sales-${exportFilenameStamp()}.csv")
                                     },
                                 )
                             }
@@ -609,6 +569,40 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/** Shared by every export filename so a fresh export never silently overwrites an older one. */
+private fun exportFilenameStamp(): String = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+
+/**
+ * One launcher factory shared by every "export as CSV" menu item — they differ only in what
+ * content they write, not in the create-document contract, the write-to-uri logic, or the
+ * success/failure toast.
+ */
+@Composable
+private fun rememberCsvExportLauncher(
+    context: Context,
+    coroutineScope: CoroutineScope,
+    csvContent: () -> String,
+) = rememberLauncherForActivityResult(
+    ActivityResultContracts.CreateDocument("text/csv"),
+) { uri ->
+    if (uri != null) {
+        val csv = csvContent()
+        coroutineScope.launch {
+            val written = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+                        ?: error("no output stream")
+                }.isSuccess
+            }
+            Toast.makeText(
+                context,
+                if (written) "CSV exported" else "CSV export failed",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 }
