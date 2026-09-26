@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +96,15 @@ fun ItemEditorDialog(
     }
     val filteredCategorySuggestions = remember(category, categorySuggestions) {
         categorySuggestions.filter { it.contains(category, ignoreCase = true) }
+    }
+
+    // Spirits are poured and priced by the shot, not the bottle — default a new item to that unit
+    // so its selling/cost price are entered per shot, matching how it's actually sold at the bar.
+    LaunchedEffect(category) {
+        val isSpirit = category.trim().let { it.equals("Spirits", ignoreCase = true) || it.equals("Whisky", ignoreCase = true) }
+        if (item == null && isSpirit && unit == InventoryItem.DEFAULT_UNIT) {
+            unit = "Shot"
+        }
     }
 
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
@@ -211,7 +221,7 @@ fun ItemEditorDialog(
                 OutlinedTextField(
                     value = quantity,
                     onValueChange = { input -> quantity = input.filter { it.isDigit() } },
-                    label = { Text("Quantity") },
+                    label = { Text("Quantity (in ${unit}s)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier
@@ -236,7 +246,7 @@ fun ItemEditorDialog(
                 OutlinedTextField(
                     value = price,
                     onValueChange = { input -> price = input.filter { it.isDigit() || it == '.' } },
-                    label = { Text("Selling Price (MWK)") },
+                    label = { Text("Selling Price per $unit (MWK)") },
                     singleLine = true,
                     enabled = canEditConfig,
                     leadingIcon = { Text("MWK") },
@@ -250,7 +260,7 @@ fun ItemEditorDialog(
                     OutlinedTextField(
                         value = costPriceText,
                         onValueChange = { input -> costPriceText = input.filter { it.isDigit() || it == '.' } },
-                        label = { Text("Cost Price (MWK) — hidden from Stock Keepers") },
+                        label = { Text("Cost Price per $unit (MWK) — hidden from Stock Keepers") },
                         singleLine = true,
                         leadingIcon = { Text("MWK") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
