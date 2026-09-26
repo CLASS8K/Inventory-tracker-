@@ -52,11 +52,16 @@ import com.example.inventory.data.UserRole
 import com.example.inventory.util.rememberBarcodeScanner
 import java.io.File
 
-/** Default serving unit per category (lowercased) — spirits by the shot, wine by the glass. */
+/**
+ * Default serving unit per category (lowercased) — spirits by the shot, wine by the glass, beer by
+ * the bottle. Cider and Soft Drinks are sold as both bottles and cans, so they're left for the
+ * admin to pick rather than guessing wrong half the time.
+ */
 private val CATEGORY_SERVING_UNITS = mapOf(
     "spirits" to "Shot",
     "whisky" to "Shot",
     "wine" to "Glass",
+    "beer" to "Bottle",
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
