@@ -92,6 +92,29 @@ data class InventoryUiState(
     val todaysRevenue: Double get() = todaysSales.sumOf { it.revenue ?: 0.0 }
     val todaysProfit: Double get() = todaysSales.sumOf { it.profit ?: 0.0 }
     val todaysTransactionCount: Int get() = todaysSales.size
+
+    /**
+     * Today's revenue grouped by whoever was signed in when each sale happened, highest first —
+     * lets an admin spot one bartender's shift numbers without digging through the raw audit log.
+     * Only meaningful once more than one person has sold something today, so the dashboard hides
+     * it otherwise rather than showing a solo entry that just repeats [todaysRevenue].
+     */
+    val todaysSalesByActor: List<Pair<String, Double>>
+        get() = todaysSales
+            .groupBy { it.actorName }
+            .mapValues { (_, entries) -> entries.sumOf { it.revenue ?: 0.0 } }
+            .toList()
+            .sortedByDescending { it.second }
+
+    /**
+     * Today's Stock Take entries logged as a loss (spillage, comp, theft, other) rather than a
+     * sale — [AuditLogEntry.revenue] is always null for these, only [AuditLogEntry.profit] is
+     * set, and it's already negative (a cost), so this is the positive cost figure for display.
+     */
+    val todaysWastageCost: Double
+        get() = -auditLog
+            .filter { it.action == "Stock Take" && it.revenue == null && (it.profit ?: 0.0) < 0 && isSameDay(it.timestamp) }
+            .sumOf { it.profit ?: 0.0 }
 }
 
 @HiltViewModel

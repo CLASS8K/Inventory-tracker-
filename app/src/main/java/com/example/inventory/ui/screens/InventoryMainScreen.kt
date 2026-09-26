@@ -503,6 +503,54 @@ private fun DashboardRow(uiState: InventoryUiState) {
                         modifier = Modifier.weight(1f),
                     )
                 }
+                // Wastage is its own row rather than squeezed beside profit — a currency value
+                // needs the same room here that the earlier truncation fix gave the other cards.
+                if (uiState.todaysWastageCost > 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        MetricCard(
+                            label = "Today's Wastage/Loss",
+                            value = formatMwk(uiState.todaysWastageCost),
+                            modifier = Modifier.weight(1f),
+                            emphasize = true,
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+                // Only shown once more than one person has sold today — with a single bartender
+                // it would just repeat Today's Revenue above.
+                if (uiState.todaysSalesByActor.size > 1) {
+                    TodaysSalesByStaff(uiState.todaysSalesByActor)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodaysSalesByStaff(salesByActor: List<Pair<String, Double>>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Today's Revenue by Staff",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            salesByActor.forEach { (actorName, revenue) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = actorName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(text = formatMwk(revenue), fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
