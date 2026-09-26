@@ -19,4 +19,10 @@ data class AuditLogEntry(
      * it can be withheld from non-admin viewers without touching the shared text every role sees.
      */
     val profit: Double? = null,
+    /**
+     * Revenue from an actual sale (a quick-sell tap, or a Stock Take with [StockLossReason.SOLD]) —
+     * null for every other entry, including a Stock Take logged as spillage/comp/theft, so summing
+     * this column across a day never counts a loss as money taken in.
+     */
+    val revenue: Double? = null,
 )
