@@ -63,7 +63,7 @@ class InventoryRepository @Inject constructor(
         val amount = actualSold * item.unitPrice
         val profit = actualSold * (item.unitPrice - item.costPrice)
         val detail = "Sold $actualSold $unitLabel(s) · ${formatMwk(amount)}"
-        logAction(item.name, "Sale", detail, actorName, profit = profit)
+        logAction(item.name, "Sale", detail, actorName, profit = profit, revenue = amount)
         if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
     }
 
@@ -89,26 +89,31 @@ class InventoryRepository @Inject constructor(
         val delta = closingStock - openingStock
         val unitLabel = item.unit.ifBlank { InventoryItem.DEFAULT_UNIT }
         val profit: Double?
+        val revenue: Double?
         val detail: String
         if (delta < 0) {
             val quantityLost = -delta
             if (reason == StockLossReason.SOLD) {
                 val amount = quantityLost * item.unitPrice
                 profit = quantityLost * (item.unitPrice - item.costPrice)
+                revenue = amount
                 detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Sold $quantityLost · ${formatMwk(amount)}"
             } else {
                 profit = -(quantityLost * item.costPrice)
+                revenue = null
                 detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · " +
                     "Lost $quantityLost to ${reason.label} — no sale recorded"
             }
         } else if (delta > 0) {
             profit = null
+            revenue = null
             detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · Stock increased by $delta, no sale recorded"
         } else {
             profit = null
+            revenue = null
             detail = "Opening $openingStock $unitLabel(s) → Closing $closingStock · No change"
         }
-        val entryId = logAction(item.name, "Stock Take", detail, actorName, profit = profit)
+        val entryId = logAction(item.name, "Stock Take", detail, actorName, profit = profit, revenue = revenue)
         if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
         return entryId
     }
@@ -133,6 +138,7 @@ class InventoryRepository @Inject constructor(
         actorName: String,
         receiptPath: String? = null,
         profit: Double? = null,
+        revenue: Double? = null,
     ): Long = auditLogDao.insert(
         AuditLogEntry(
             itemName = itemName,
@@ -141,6 +147,7 @@ class InventoryRepository @Inject constructor(
             actorName = actorName,
             receiptPath = receiptPath,
             profit = profit,
+            revenue = revenue,
         ),
     )
 }

@@ -12,6 +12,7 @@ import com.example.inventory.data.StockLossReason
 import com.example.inventory.data.UserProfile
 import com.example.inventory.data.UserRepository
 import com.example.inventory.data.UserRole
+import com.example.inventory.util.isSameDay
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -79,6 +80,18 @@ data class InventoryUiState(
     /** Profit if everything currently on the shelf sold at its listed price. Admin-only figure. */
     val totalPotentialProfit: Double
         get() = items.sumOf { it.quantity * (it.unitPrice - it.costPrice) }
+
+    /**
+     * Every audit entry that represents money actually taken in today — a quick sell tap or a
+     * Stock Take reconciled as [StockLossReason.SOLD] — as opposed to a restock, edit, or a loss
+     * (spillage/comp/theft) that [AuditLogEntry.revenue] is deliberately null for. Admin-only.
+     */
+    val todaysSales: List<AuditLogEntry>
+        get() = auditLog.filter { it.revenue != null && isSameDay(it.timestamp) }
+
+    val todaysRevenue: Double get() = todaysSales.sumOf { it.revenue ?: 0.0 }
+    val todaysProfit: Double get() = todaysSales.sumOf { it.profit ?: 0.0 }
+    val todaysTransactionCount: Int get() = todaysSales.size
 }
 
 @HiltViewModel

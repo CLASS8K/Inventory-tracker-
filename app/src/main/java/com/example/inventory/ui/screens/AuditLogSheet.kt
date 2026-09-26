@@ -125,7 +125,7 @@ private fun AuditLogRow(entry: AuditLogEntry, isAdmin: Boolean, onViewReceipt: (
         )
         if (isAdmin && entry.profit != null) {
             Text(
-                text = "Profit: ${formatMwk(entry.profit)}",
+                text = "Revenue: ${entry.revenue?.let { formatMwk(it) } ?: "—"} · Profit: ${formatMwk(entry.profit)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold,

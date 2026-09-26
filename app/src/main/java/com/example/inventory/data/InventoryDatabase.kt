@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 
-const val DB_VERSION = 7
+const val DB_VERSION = 8
 
 @Database(
     entities = [InventoryItem::class, AuditLogEntry::class, UserProfile::class, Supplier::class],

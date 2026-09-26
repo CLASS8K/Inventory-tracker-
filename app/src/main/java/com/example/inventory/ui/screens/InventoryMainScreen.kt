@@ -488,6 +488,22 @@ private fun DashboardRow(uiState: InventoryUiState) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
+            // Actual money taken in today, not just what's sitting on the shelf — the number an
+            // owner actually wants at the end of a shift, without scrolling the raw audit log.
+            if (uiState.isAdmin) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    MetricCard(
+                        label = "Today's Revenue (${uiState.todaysTransactionCount})",
+                        value = formatMwk(uiState.todaysRevenue),
+                        modifier = Modifier.weight(1f),
+                    )
+                    MetricCard(
+                        label = "Today's Profit",
+                        value = formatMwk(uiState.todaysProfit),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
     }
 }
