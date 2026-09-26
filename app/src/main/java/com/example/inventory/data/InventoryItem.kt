@@ -28,5 +28,10 @@ data class InventoryItem(
     companion object {
         const val DEFAULT_UNIT = "Unit"
         val UNIT_CHOICES = listOf("Unit", "Bottle", "Can", "Shot")
+
+        /** Starter list offered in the category dropdown — category stays free text so a bar can add its own. */
+        val DEFAULT_CATEGORY_SUGGESTIONS = listOf(
+            "Beer", "Spirits", "Wine", "Whisky", "Cider", "Soft Drinks", "Mixers", "Cigarettes", "Snacks",
+        )
     }
 }
