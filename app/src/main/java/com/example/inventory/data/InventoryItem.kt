@@ -21,6 +21,13 @@ data class InventoryItem(
     val costPrice: Double = 0.0,
     /** Who to reorder this from — a soft reference to [Supplier.id], no FK constraint. */
     val supplierId: Long? = null,
+    /**
+     * How many servings (e.g. shots, glasses) one purchased pack (e.g. a bottle) yields — null when
+     * [unit] is itself what's purchased (a Bottle of beer, a Can). Lets the item editor's calculator
+     * turn a bottle cost into a per-serving [costPrice], and a bottle count into a per-serving
+     * [quantity], instead of admins doing that division by hand.
+     */
+    val servingsPerPack: Int? = null,
 ) {
     val isLowStock: Boolean
         get() = quantity <= lowStockThreshold

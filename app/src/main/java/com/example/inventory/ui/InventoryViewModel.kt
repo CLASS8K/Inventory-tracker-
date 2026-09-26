@@ -188,6 +188,7 @@ class InventoryViewModel @Inject constructor(
         costPrice: Double = 0.0,
         supplierId: Long? = null,
         receiptPath: String? = null,
+        servingsPerPack: Int? = null,
     ) {
         val actor = sessionManager.currentUser.value ?: return
         viewModelScope.launch {
@@ -203,6 +204,7 @@ class InventoryViewModel @Inject constructor(
                     unit = unit,
                     costPrice = costPrice,
                     supplierId = supplierId,
+                    servingsPerPack = servingsPerPack,
                 ),
                 actorName = actor.name,
                 receiptPath = receiptPath,

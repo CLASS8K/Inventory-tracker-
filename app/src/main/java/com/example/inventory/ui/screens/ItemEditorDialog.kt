@@ -49,6 +49,7 @@ import coil.compose.AsyncImage
 import com.example.inventory.data.InventoryItem
 import com.example.inventory.data.Supplier
 import com.example.inventory.data.UserRole
+import com.example.inventory.util.formatMwk
 import com.example.inventory.util.rememberBarcodeScanner
 import java.io.File
 
@@ -87,6 +88,7 @@ fun ItemEditorDialog(
         unit: String,
         costPrice: Double,
         supplierId: Long?,
+        servingsPerPack: Int?,
     ) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
@@ -102,6 +104,9 @@ fun ItemEditorDialog(
     var unit by remember { mutableStateOf(item?.unit ?: InventoryItem.DEFAULT_UNIT) }
     var supplierId by remember { mutableStateOf(item?.supplierId) }
     var showCreateSupplier by remember { mutableStateOf(false) }
+    var servingsPerPackText by remember { mutableStateOf(item?.servingsPerPack?.toString().orEmpty()) }
+    var packCostText by remember { mutableStateOf("") }
+    var packCountText by remember { mutableStateOf("") }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     val categorySuggestions = remember(existingCategories) {
         (InventoryItem.DEFAULT_CATEGORY_SUGGESTIONS + existingCategories).distinct().sorted()
@@ -123,6 +128,13 @@ fun ItemEditorDialog(
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
     val canEditConfig = role == UserRole.ADMIN
     val canDelete = role == UserRole.ADMIN && onDelete != null && !isReadOnly
+
+    // Shots and glasses are poured from a bottle bought as a whole — the pack calculator below
+    // turns a bottle cost/count into a per-serving cost/quantity instead of admins doing it by hand.
+    val isServingUnit = unit == "Shot" || unit == "Glass"
+    val servingsPerPack = servingsPerPackText.toIntOrNull()?.takeIf { it > 0 }
+    val computedQuantity = servingsPerPack?.let { spp -> packCountText.toIntOrNull()?.let { it * spp } }
+    val computedCostPrice = servingsPerPack?.let { spp -> packCostText.toDoubleOrNull()?.let { it / spp } }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onImportImage(uri) { path -> photoPath = path }
@@ -230,6 +242,23 @@ fun ItemEditorDialog(
                             )
                         }
                     }
+                }
+                if (canEditConfig && isServingUnit) {
+                    PackCalculator(
+                        unit = unit,
+                        servingsPerPackText = servingsPerPackText,
+                        onServingsPerPackChange = { servingsPerPackText = it },
+                        packCountText = packCountText,
+                        onPackCountChange = { packCountText = it },
+                        packCostText = packCostText,
+                        onPackCostChange = { packCostText = it },
+                        computedQuantity = computedQuantity,
+                        computedCostPrice = computedCostPrice,
+                        onApply = {
+                            computedQuantity?.let { quantity = it.toString() }
+                            computedCostPrice?.let { costPriceText = "%.2f".format(it) }
+                        },
+                    )
                 }
                 OutlinedTextField(
                     value = quantity,
@@ -352,6 +381,7 @@ fun ItemEditorDialog(
                         unit,
                         costPriceText.toDoubleOrNull() ?: 0.0,
                         supplierId,
+                        servingsPerPack,
                     )
                 },
             ) {
@@ -375,6 +405,86 @@ fun ItemEditorDialog(
                 showCreateSupplier = false
             },
         )
+    }
+}
+
+/**
+ * Turns a bottle cost and a bottle count into a per-serving cost and quantity, so admins don't do
+ * that division by hand when a spirit/wine item is bought by the bottle but sold by the shot/glass.
+ * Purely a data-entry helper: nothing here is saved except [PackCalculator]'s own [servingsPerPackText],
+ * which the caller applies to the real Quantity/Cost Price fields via [onApply].
+ */
+@Composable
+private fun PackCalculator(
+    unit: String,
+    servingsPerPackText: String,
+    onServingsPerPackChange: (String) -> Unit,
+    packCountText: String,
+    onPackCountChange: (String) -> Unit,
+    packCostText: String,
+    onPackCostChange: (String) -> Unit,
+    computedQuantity: Int?,
+    computedCostPrice: Double?,
+    onApply: () -> Unit,
+) {
+    Text(
+        text = "Pack calculator",
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    OutlinedTextField(
+        value = servingsPerPackText,
+        onValueChange = { input -> onServingsPerPackChange(input.filter { it.isDigit() }) },
+        label = { Text("${unit}s per bottle (e.g. 25 shots per 750ml)") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    )
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    ) {
+        OutlinedTextField(
+            value = packCountText,
+            onValueChange = { input -> onPackCountChange(input.filter { it.isDigit() }) },
+            label = { Text("Bottles received") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedTextField(
+            value = packCostText,
+            onValueChange = { input -> onPackCostChange(input.filter { it.isDigit() || it == '.' }) },
+            label = { Text("Cost per bottle (MWK)") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.weight(1f),
+        )
+    }
+    if (computedQuantity != null || computedCostPrice != null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        ) {
+            val quantityPart = computedQuantity?.let { "$it $unit${if (it == 1) "" else "s"}" }
+            val costPart = computedCostPrice?.let { "${formatMwk(it)} cost per $unit" }
+            Text(
+                text = "= " + listOfNotNull(quantityPart, costPart).joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onApply) {
+                Text("Use these values")
+            }
+        }
     }
 }
 
