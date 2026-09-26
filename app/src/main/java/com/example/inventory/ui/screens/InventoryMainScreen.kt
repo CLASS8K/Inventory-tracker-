@@ -98,6 +98,7 @@ import com.example.inventory.ui.InventoryViewModel
 import com.example.inventory.ui.SortOption
 import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.util.buildInventoryCsv
+import com.example.inventory.util.buildSalesCsv
 import com.example.inventory.util.formatMwk
 import com.example.inventory.util.rememberBarcodeScanner
 import kotlinx.coroutines.Dispatchers
@@ -184,6 +185,27 @@ fun InventoryMainScreen(
         }
     }
 
+    val salesCsvExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            val csv = buildSalesCsv(uiState.todaysSales)
+            coroutineScope.launch {
+                val written = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+                            ?: error("no output stream")
+                    }.isSuccess
+                }
+                Toast.makeText(
+                    context,
+                    if (written) "CSV exported" else "CSV export failed",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -220,6 +242,16 @@ fun InventoryMainScreen(
                                     csvExportLauncher.launch("nkhokwe-inventory-$stamp.csv")
                                 },
                             )
+                            if (uiState.isAdmin) {
+                                DropdownMenuItem(
+                                    text = { Text("Export today's sales as CSV") },
+                                    onClick = {
+                                        showShareMenu = false
+                                        val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
+                                        salesCsvExportLauncher.launch("nkhokwe-sales-$stamp.csv")
+                                    },
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = { showAuditLog = true }) {
