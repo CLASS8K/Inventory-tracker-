@@ -344,9 +344,10 @@ fun InventoryMainScreen(
             onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
             onDismiss = { isAdding = false },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId, servingsPerPack ->
                 viewModel.addItem(
                     name, sku, category, quantity, threshold, price, photoPath, unit, costPrice, supplierId, receiptPath,
+                    servingsPerPack,
                 )
                 isAdding = false
             },
@@ -364,7 +365,7 @@ fun InventoryMainScreen(
             onCreateSupplier = { name, phone, onResult -> supplierViewModel.createSupplier(name, phone, "", onResult) },
             onImportImage = viewModel::importImage,
             onDismiss = { editingItem = null },
-            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId ->
+            onSave = { name, sku, category, quantity, threshold, price, photoPath, receiptPath, unit, costPrice, supplierId, servingsPerPack ->
                 viewModel.updateItem(
                     previous = item,
                     updated = item.copy(
@@ -378,6 +379,7 @@ fun InventoryMainScreen(
                         unit = unit,
                         costPrice = costPrice,
                         supplierId = supplierId,
+                        servingsPerPack = servingsPerPack,
                         lastUpdated = System.currentTimeMillis(),
                     ),
                     receiptPath = receiptPath,
