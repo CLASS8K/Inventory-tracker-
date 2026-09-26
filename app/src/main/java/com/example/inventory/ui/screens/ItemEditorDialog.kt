@@ -24,7 +24,11 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +60,7 @@ fun ItemEditorDialog(
     role: UserRole,
     isReadOnly: Boolean,
     suppliers: List<Supplier>,
+    existingCategories: List<String> = emptyList(),
     onCreateSupplier: (name: String, phone: String, onResult: (Supplier) -> Unit) -> Unit,
     onImportImage: (Uri, (String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
@@ -86,6 +91,13 @@ fun ItemEditorDialog(
     var unit by remember { mutableStateOf(item?.unit ?: InventoryItem.DEFAULT_UNIT) }
     var supplierId by remember { mutableStateOf(item?.supplierId) }
     var showCreateSupplier by remember { mutableStateOf(false) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+    val categorySuggestions = remember(existingCategories) {
+        (InventoryItem.DEFAULT_CATEGORY_SUGGESTIONS + existingCategories).distinct().sorted()
+    }
+    val filteredCategorySuggestions = remember(category, categorySuggestions) {
+        categorySuggestions.filter { it.contains(category, ignoreCase = true) }
+    }
 
     // A Stock Keeper may only restock an existing item's quantity; item configuration is admin-only.
     val canEditConfig = role == UserRole.ADMIN
@@ -146,16 +158,46 @@ fun ItemEditorDialog(
                         .fillMaxWidth()
                         .padding(top = 8.dp),
                 )
-                OutlinedTextField(
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category") },
-                    singleLine = true,
-                    enabled = canEditConfig,
+                ExposedDropdownMenuBox(
+                    expanded = categoryMenuExpanded && canEditConfig && filteredCategorySuggestions.isNotEmpty(),
+                    onExpandedChange = { if (canEditConfig) categoryMenuExpanded = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp),
-                )
+                ) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = {
+                            category = it
+                            categoryMenuExpanded = true
+                        },
+                        label = { Text("Category / drink type") },
+                        singleLine = true,
+                        enabled = canEditConfig,
+                        trailingIcon = if (canEditConfig) {
+                            { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = categoryMenuExpanded && canEditConfig && filteredCategorySuggestions.isNotEmpty(),
+                        onDismissRequest = { categoryMenuExpanded = false },
+                    ) {
+                        filteredCategorySuggestions.forEach { suggestion ->
+                            DropdownMenuItem(
+                                text = { Text(suggestion) },
+                                onClick = {
+                                    category = suggestion
+                                    categoryMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
                 if (canEditConfig) {
                     Text(
                         text = "Unit",
