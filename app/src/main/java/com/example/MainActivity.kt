@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -31,6 +33,7 @@ import com.example.inventory.ui.InventoryViewModel
 import com.example.inventory.ui.LicenseViewModel
 import com.example.inventory.ui.SupplierViewModel
 import com.example.inventory.ui.screens.AdminPanelScreen
+import com.example.inventory.ui.screens.BusinessSetupDialog
 import com.example.inventory.ui.screens.InventoryMainScreen
 import com.example.inventory.ui.screens.SignInScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -103,9 +106,30 @@ private fun NkhokweApp() {
         return
     }
 
+    val businessName by licenseViewModel.businessName.collectAsStateWithLifecycle()
+    if (businessName.isNullOrBlank()) {
+        if (currentUser?.role == UserRole.ADMIN) {
+            BusinessSetupDialog(onSave = { licenseViewModel.setBusinessName(it) })
+        } else {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Text(
+                    text = "Ask your admin to finish setting up this device before signing in.",
+                    modifier = Modifier.padding(24.dp),
+                )
+            }
+        }
+        return
+    }
+
     var showAdminPanel by remember { mutableStateOf(false) }
     if (showAdminPanel && currentUser?.role == UserRole.ADMIN) {
-        AdminPanelScreen(viewModel = authViewModel, supplierViewModel = supplierViewModel, onBack = { showAdminPanel = false })
+        AdminPanelScreen(
+            viewModel = authViewModel,
+            supplierViewModel = supplierViewModel,
+            businessName = businessName.orEmpty(),
+            onSaveBusinessName = { licenseViewModel.setBusinessName(it) },
+            onBack = { showAdminPanel = false },
+        )
     } else {
         InventoryMainScreen(
             viewModel = inventoryViewModel,

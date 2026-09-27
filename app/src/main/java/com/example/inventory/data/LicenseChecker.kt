@@ -25,6 +25,13 @@ class LicenseChecker @Inject constructor(
     val deviceId: String
         get() = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
 
+    /** The bar/club name an admin entered at setup — null until then. Self-reported, used to tell devices apart in Firebase. */
+    fun businessName(): String? = prefs.getString(KEY_BUSINESS_NAME, null)
+
+    fun setBusinessName(name: String) {
+        prefs.edit { putString(KEY_BUSINESS_NAME, name) }
+    }
+
     suspend fun refresh() {
         val activeUntilMillis = runCatching { fetchActiveUntilMillis() }.getOrNull()
         val blocked = runCatching { fetchBlocked() }.getOrNull()
@@ -103,6 +110,7 @@ class LicenseChecker @Inject constructor(
         val heartbeat = mapOf(
             FIELD_MODEL to "${Build.MANUFACTURER} ${Build.MODEL}",
             FIELD_LAST_SEEN to FieldValue.serverTimestamp(),
+            FIELD_BUSINESS_NAME to businessName().orEmpty(),
         )
         firestore.collection(COLLECTION).document(DOCUMENT)
             .collection(DEVICES_SUBCOLLECTION).document(deviceId)
@@ -117,6 +125,7 @@ class LicenseChecker @Inject constructor(
         private const val KEY_BLOCKED = "blocked"
         private const val KEY_LAST_SYNC = "last_sync_millis"
         private const val KEY_FIRST_SEEN = "first_seen_millis"
+        private const val KEY_BUSINESS_NAME = "business_name"
         private const val NEVER_CHECKED = -1L
         private const val COLLECTION = "license"
         private const val DOCUMENT = "status"
@@ -125,6 +134,7 @@ class LicenseChecker @Inject constructor(
         private const val FIELD_BLOCKED = "blocked"
         private const val FIELD_MODEL = "model"
         private const val FIELD_LAST_SEEN = "lastSeenMillis"
+        private const val FIELD_BUSINESS_NAME = "businessName"
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         const val WARNING_THRESHOLD_DAYS = 7L
         const val GRACE_PERIOD_DAYS = 5L

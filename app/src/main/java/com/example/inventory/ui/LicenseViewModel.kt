@@ -22,6 +22,9 @@ class LicenseViewModel @Inject constructor(
     private val _daysUntilDue = MutableStateFlow(licenseChecker.daysUntilDue())
     val daysUntilDue: StateFlow<Long> = _daysUntilDue.asStateFlow()
 
+    private val _businessName = MutableStateFlow(licenseChecker.businessName())
+    val businessName: StateFlow<String?> = _businessName.asStateFlow()
+
     init {
         refresh()
     }
@@ -33,5 +36,12 @@ class LicenseViewModel @Inject constructor(
             _status.value = licenseChecker.currentStatus()
             _daysUntilDue.value = licenseChecker.daysUntilDue()
         }
+    }
+
+    /** Saves the bar/club name entered at setup and immediately pushes it to Firestore. */
+    fun setBusinessName(name: String) {
+        licenseChecker.setBusinessName(name)
+        _businessName.value = name
+        refresh()
     }
 }
