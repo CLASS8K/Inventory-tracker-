@@ -11,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.util.UUID
 import kotlin.coroutines.resume
 
 enum class LicenseStatus { ACTIVE, WARNING, READ_ONLY, OFFLINE_LOCKED, BLOCKED }
@@ -22,8 +23,26 @@ class LicenseChecker @Inject constructor(
     private val prefs get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val firestore by lazy { FirebaseFirestore.getInstance() }
 
+    /**
+     * A per-device identifier for Firestore documents. Falls back to a locally generated, persisted
+     * UUID when ANDROID_ID is unavailable or is the known-buggy value some Android builds return
+     * (see AOSP issue 88083) — otherwise every such device would collide on one shared "unknown"
+     * document, each overwriting the others' heartbeat and sharing a single block/unblock state.
+     */
     val deviceId: String
-        get() = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
+        get() {
+            val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+            if (!androidId.isNullOrBlank() && androidId != KNOWN_BAD_ANDROID_ID) return androidId
+            return fallbackDeviceId()
+        }
+
+    private fun fallbackDeviceId(): String {
+        val existing = prefs.getString(KEY_FALLBACK_DEVICE_ID, null)
+        if (existing != null) return existing
+        val generated = UUID.randomUUID().toString()
+        prefs.edit { putString(KEY_FALLBACK_DEVICE_ID, generated) }
+        return generated
+    }
 
     /** The bar/club name an admin entered at setup — null until then. Self-reported, used to tell devices apart in Firebase. */
     fun businessName(): String? = prefs.getString(KEY_BUSINESS_NAME, null)
@@ -153,6 +172,8 @@ class LicenseChecker @Inject constructor(
         private const val KEY_LAST_SYNC = "last_sync_millis"
         private const val KEY_FIRST_SEEN = "first_seen_millis"
         private const val KEY_BUSINESS_NAME = "business_name"
+        private const val KEY_FALLBACK_DEVICE_ID = "fallback_device_id"
+        private const val KNOWN_BAD_ANDROID_ID = "9774d56d682e549c"
         private const val NEVER_CHECKED = -1L
         private const val COLLECTION = "license"
         private const val DOCUMENT = "status"
