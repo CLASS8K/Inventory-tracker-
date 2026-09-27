@@ -32,6 +32,30 @@ class LicenseChecker @Inject constructor(
         prefs.edit { putString(KEY_BUSINESS_NAME, name) }
     }
 
+    /**
+     * Counts *other* devices already registered under the same name (case/whitespace-insensitive).
+     * This is a heads-up for the admin, not a lock: several devices sharing one bar's name is normal
+     * (one tablet per bartender), so a match here isn't necessarily a problem — just something to
+     * glance at in Firebase if the count looks wrong. Returns null if the check couldn't reach Firestore.
+     */
+    suspend fun countOtherDevicesWithBusinessName(name: String): Int? {
+        val normalized = normalizeBusinessName(name)
+        if (normalized.isEmpty()) return 0
+        return runCatching {
+            suspendCancellableCoroutine<Int> { cont ->
+                firestore.collection(COLLECTION).document(DOCUMENT)
+                    .collection(DEVICES_SUBCOLLECTION)
+                    .whereEqualTo(FIELD_BUSINESS_NAME_NORMALIZED, normalized)
+                    .get()
+                    .addOnSuccessListener { snapshot ->
+                        val count = snapshot.documents.count { it.id != deviceId }
+                        if (cont.isActive) cont.resume(count)
+                    }
+                    .addOnFailureListener { if (cont.isActive) cont.resume(-1) }
+            }
+        }.getOrNull()?.takeIf { it >= 0 }
+    }
+
     suspend fun refresh() {
         val activeUntilMillis = runCatching { fetchActiveUntilMillis() }.getOrNull()
         val blocked = runCatching { fetchBlocked() }.getOrNull()
@@ -111,6 +135,7 @@ class LicenseChecker @Inject constructor(
             FIELD_MODEL to "${Build.MANUFACTURER} ${Build.MODEL}",
             FIELD_LAST_SEEN to FieldValue.serverTimestamp(),
             FIELD_BUSINESS_NAME to businessName().orEmpty(),
+            FIELD_BUSINESS_NAME_NORMALIZED to normalizeBusinessName(businessName().orEmpty()),
         )
         firestore.collection(COLLECTION).document(DOCUMENT)
             .collection(DEVICES_SUBCOLLECTION).document(deviceId)
@@ -120,6 +145,8 @@ class LicenseChecker @Inject constructor(
     }
 
     companion object {
+        private fun normalizeBusinessName(name: String): String = name.trim().lowercase()
+
         private const val PREFS_NAME = "license_prefs"
         private const val KEY_ACTIVE_UNTIL = "active_until_millis"
         private const val KEY_BLOCKED = "blocked"
@@ -135,6 +162,7 @@ class LicenseChecker @Inject constructor(
         private const val FIELD_MODEL = "model"
         private const val FIELD_LAST_SEEN = "lastSeenMillis"
         private const val FIELD_BUSINESS_NAME = "businessName"
+        private const val FIELD_BUSINESS_NAME_NORMALIZED = "businessNameNormalized"
         private const val DAY_MILLIS = 24 * 60 * 60 * 1000L
         const val WARNING_THRESHOLD_DAYS = 7L
         const val GRACE_PERIOD_DAYS = 5L

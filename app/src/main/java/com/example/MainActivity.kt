@@ -10,9 +10,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -119,6 +121,18 @@ private fun NkhokweApp() {
             }
         }
         return
+    }
+
+    val businessNameWarning by licenseViewModel.businessNameWarning.collectAsStateWithLifecycle()
+    businessNameWarning?.let { warning ->
+        AlertDialog(
+            onDismissRequest = licenseViewModel::dismissBusinessNameWarning,
+            title = { Text("Heads up") },
+            text = { Text(warning) },
+            confirmButton = {
+                TextButton(onClick = licenseViewModel::dismissBusinessNameWarning) { Text("OK") }
+            },
+        )
     }
 
     var showAdminPanel by remember { mutableStateOf(false) }
