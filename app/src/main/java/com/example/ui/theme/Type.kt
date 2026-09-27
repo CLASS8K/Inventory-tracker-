@@ -27,6 +27,18 @@ val FrauncesFontFamily = FontFamily(
     Font(googleFont = frauncesName, fontProvider = fontProvider, weight = FontWeight.Bold),
 )
 
+// Fraunces (a display serif) carries the brand voice in display/headline/title, but reads heavy at
+// small sizes in dense functional text — item rows, prices, buttons. Inter pairs with it for the
+// body/label styles: a clean, highly legible sans is what those need to feel premium, not decorative.
+private val interName = GoogleFont("Inter")
+
+val InterFontFamily = FontFamily(
+    Font(googleFont = interName, fontProvider = fontProvider, weight = FontWeight.Normal),
+    Font(googleFont = interName, fontProvider = fontProvider, weight = FontWeight.Medium),
+    Font(googleFont = interName, fontProvider = fontProvider, weight = FontWeight.SemiBold),
+    Font(googleFont = interName, fontProvider = fontProvider, weight = FontWeight.Bold),
+)
+
 val Typography = Typography(
     displayLarge = TextStyle(
         fontFamily = FrauncesFontFamily,
@@ -86,42 +98,42 @@ val Typography = Typography(
         letterSpacing = 0.1.sp,
     ),
     bodyLarge = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp,
     ),
     bodyMedium = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.25.sp,
     ),
     bodySmall = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp,
     ),
     labelLarge = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
     ),
     labelMedium = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = FrauncesFontFamily,
+        fontFamily = InterFontFamily,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
