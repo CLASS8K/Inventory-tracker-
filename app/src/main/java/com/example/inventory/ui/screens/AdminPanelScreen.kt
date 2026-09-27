@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalShipping
@@ -66,11 +67,18 @@ private enum class AdminTab { USERS, SUPPLIERS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewModel, onBack: () -> Unit) {
+fun AdminPanelScreen(
+    viewModel: AuthViewModel,
+    supplierViewModel: SupplierViewModel,
+    businessName: String,
+    onSaveBusinessName: (String) -> Unit,
+    onBack: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val suppliers by supplierViewModel.suppliers.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(AdminTab.USERS) }
+    var showEditBusinessName by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<UserProfile?>(null) }
     var deleteBlocked by remember { mutableStateOf(false) }
@@ -120,13 +128,16 @@ fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewMo
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Admin Panel") },
+                title = { Text("Admin Panel — $businessName") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showEditBusinessName = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit business name")
+                    }
                     IconButton(onClick = {
                         val stamp = SimpleDateFormat("yyyyMMdd-HHmm", Locale.US).format(Date())
                         exportLauncher.launch("nkhokwe-backup-$stamp.db")
@@ -352,6 +363,17 @@ fun AdminPanelScreen(viewModel: AuthViewModel, supplierViewModel: SupplierViewMo
                 isAddingSupplier = false
             },
             onDelete = null,
+        )
+    }
+
+    if (showEditBusinessName) {
+        EditBusinessNameDialog(
+            currentName = businessName,
+            onDismiss = { showEditBusinessName = false },
+            onSave = { name ->
+                onSaveBusinessName(name)
+                showEditBusinessName = false
+            },
         )
     }
 

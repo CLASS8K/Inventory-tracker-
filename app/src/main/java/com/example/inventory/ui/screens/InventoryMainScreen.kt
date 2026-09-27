@@ -126,15 +126,13 @@ fun InventoryMainScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val isReadOnly = licenseStatus == LicenseStatus.READ_ONLY
+    val isReadOnly = licenseStatus == LicenseStatus.READ_ONLY ||
+        licenseStatus == LicenseStatus.OFFLINE_LOCKED ||
+        licenseStatus == LicenseStatus.BLOCKED
 
     fun blockIfReadOnly(action: () -> Unit) {
         if (isReadOnly) {
-            Toast.makeText(
-                context,
-                "Subscription overdue — contact Frank to restore full access",
-                Toast.LENGTH_LONG,
-            ).show()
+            Toast.makeText(context, readOnlyToastMessage(licenseStatus), Toast.LENGTH_LONG).show()
         } else {
             action()
         }
@@ -653,16 +651,29 @@ private fun CategoryChips(
     }
 }
 
+/** Toast shown when an action is blocked by [InventoryMainScreen.isReadOnly] — kept in sync with [LicenseBanner]'s wording. */
+private fun readOnlyToastMessage(status: LicenseStatus): String = when (status) {
+    LicenseStatus.BLOCKED -> "This device's access was revoked — contact Frank to restore it"
+    LicenseStatus.OFFLINE_LOCKED -> "No internet connection for over 5 days — reconnect to continue"
+    else -> "Subscription overdue — contact Frank to restore full access"
+}
+
 @Composable
 private fun LicenseBanner(status: LicenseStatus, daysUntilDue: Long) {
-    val message = when {
-        status == LicenseStatus.READ_ONLY -> "Subscription overdue — selling, restocking, and editing items are paused. Contact Frank to restore full access."
-        daysUntilDue >= 0 -> "Subscription due in $daysUntilDue day${if (daysUntilDue == 1L) "" else "s"}."
-        else -> "Subscription overdue by ${-daysUntilDue} day${if (daysUntilDue == -1L) "" else "s"} — renew soon to avoid restricted access."
+    val message = when (status) {
+        LicenseStatus.BLOCKED -> "This device's access was revoked. Contact Frank to restore it."
+        LicenseStatus.OFFLINE_LOCKED -> "No internet connection for over 5 days — selling, restocking, and editing items are paused. Reconnect to continue."
+        LicenseStatus.READ_ONLY -> "Subscription overdue — selling, restocking, and editing items are paused. Contact Frank to restore full access."
+        else -> if (daysUntilDue >= 0) {
+            "Subscription due in $daysUntilDue day${if (daysUntilDue == 1L) "" else "s"}."
+        } else {
+            "Subscription overdue by ${-daysUntilDue} day${if (daysUntilDue == -1L) "" else "s"} — renew soon to avoid restricted access."
+        }
     }
+    val isLocked = status == LicenseStatus.READ_ONLY || status == LicenseStatus.OFFLINE_LOCKED || status == LicenseStatus.BLOCKED
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (status == LicenseStatus.READ_ONLY) {
+            containerColor = if (isLocked) {
                 MaterialTheme.colorScheme.errorContainer
             } else {
                 MaterialTheme.colorScheme.tertiaryContainer
