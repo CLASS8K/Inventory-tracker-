@@ -11,6 +11,7 @@
     --ochre: #8A6A1A;
     --ochre-light: #F5DFA6;
     --millet: #3E6B33;
+    --millet-light: #C4EFB6;
     --ink: #21190F;
     --ink-soft: #504539;
     --line: #D5C4B4;
@@ -52,14 +53,25 @@
     background: var(--millet);
   }
   .dot.offline { background: #C62828; }
-  .toolbar {
-    padding: 16px 24px;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
+  button {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: none;
+    background: var(--terracotta);
+    color: #fff;
+    cursor: pointer;
   }
-  select, input[type=text] {
+  button.secondary {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    font-weight: 500;
+    padding: 8px 14px;
+  }
+  select, input[type=text], input[type=email], input[type=password] {
     font-family: inherit;
     font-size: 14px;
     padding: 8px 12px;
@@ -67,6 +79,14 @@
     border: 1px solid var(--line);
     background: var(--card);
     color: var(--ink);
+  }
+  .toolbar {
+    padding: 16px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
   main {
     max-width: 720px;
@@ -79,6 +99,22 @@
     padding: 60px 20px;
     font-size: 14px;
   }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 18px;
+  }
+  .stat .label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .stat.revenue .value { color: var(--terracotta); }
+  .stat.profit .value { color: var(--millet); }
   .event {
     background: var(--card);
     border: 1px solid var(--line);
@@ -102,6 +138,7 @@
     color: var(--terracotta);
     flex-shrink: 0;
   }
+  .event.sale .badge { background: var(--millet-light); color: var(--millet); }
   .event .body { flex: 1; min-width: 0; }
   .event .top-line {
     display: flex;
@@ -113,31 +150,67 @@
   .event .actor .biz { font-weight: 400; color: var(--ink-soft); }
   .event .time { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
   .event .item { font-size: 13px; color: var(--ochre); margin-top: 2px; font-weight: 600; }
+  .event.sale .item { color: var(--millet); }
   .event .detail { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+  .event .money { font-size: 12px; font-weight: 700; color: var(--millet); margin-top: 4px; }
+
+  #signIn {
+    max-width: 340px;
+    margin: 80px auto;
+    padding: 0 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #signIn h1 { font-size: 18px; margin: 0 0 4px; }
+  #signIn p { font-size: 13px; color: var(--ink-soft); margin: 0 0 8px; }
+  #signInError { font-size: 13px; color: #C62828; min-height: 16px; }
 </style>
 </head>
 <body>
-<header>
+
+<div id="signIn">
   <h1>Nkhokwe — Live Activity</h1>
-  <div class="status"><span class="dot" id="connDot"></span><span id="connLabel">Connecting…</span></div>
-</header>
-<div class="toolbar">
-  <select id="businessFilter">
-    <option value="">All businesses</option>
-  </select>
+  <p>Owner sign-in. Ask your dashboard admin to create your login in Firebase Authentication if you don't have one yet.</p>
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button id="signInBtn">Sign in</button>
+  <div id="signInError"></div>
 </div>
-<main>
-  <div id="list"></div>
-  <div class="empty" id="emptyState" style="display:none">No stock take activity yet.</div>
-</main>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>Nkhokwe — Live Activity</h1>
+    <div class="status">
+      <span class="dot" id="connDot"></span><span id="connLabel">Connecting…</span>
+      <button class="secondary" id="signOutBtn" style="margin-left:12px">Sign out</button>
+    </div>
+  </header>
+  <div class="toolbar">
+    <select id="businessFilter">
+      <option value="">All businesses</option>
+    </select>
+  </div>
+  <main>
+    <div class="stats">
+      <div class="stat revenue"><div class="label">Today's Revenue</div><div class="value" id="statRevenue">MK 0</div></div>
+      <div class="stat profit"><div class="label">Today's Profit</div><div class="value" id="statProfit">MK 0</div></div>
+      <div class="stat"><div class="label">Events Today</div><div class="value" id="statCount">0</div></div>
+    </div>
+    <div id="list"></div>
+    <div class="empty" id="emptyState" style="display:none">No activity yet.</div>
+  </main>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
   // Fill these in from Firebase Console → Project Settings → General → Your apps → Web app.
-  // These are the same public web-app identifiers Firebase expects to ship client-side; they
-  // are not secrets, but Firestore rules must exist (see dashboard/FIRESTORE_RULES.md) restricting
-  // what a client can write, the same way license/status/devices already is.
+  // Not secrets — every Firebase web app ships these client-side. What protects the data is
+  // the Firestore rules (dashboard/FIRESTORE_RULES.md): only a signed-in user can read
+  // businessEvents, which is why this page also needs Firebase Authentication enabled with
+  // at least one email/password user created for the owner (Console → Authentication → Users).
   const firebaseConfig = {
     apiKey: "REPLACE_ME",
     authDomain: "nkhokwe-e683b.firebaseapp.com",
@@ -148,16 +221,55 @@
   };
 
   firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
   const db = firebase.firestore();
+
+  const signInEl = document.getElementById("signIn");
+  const appEl = document.getElementById("app");
+  const emailEl = document.getElementById("email");
+  const passwordEl = document.getElementById("password");
+  const signInBtn = document.getElementById("signInBtn");
+  const signInError = document.getElementById("signInError");
+  const signOutBtn = document.getElementById("signOutBtn");
+
+  signInBtn.addEventListener("click", () => {
+    signInError.textContent = "";
+    auth.signInWithEmailAndPassword(emailEl.value.trim(), passwordEl.value)
+      .catch((err) => { signInError.textContent = err.message; });
+  });
+  passwordEl.addEventListener("keydown", (e) => { if (e.key === "Enter") signInBtn.click(); });
+  signOutBtn.addEventListener("click", () => auth.signOut());
+
+  let unsubscribeEvents = null;
+
+  auth.onAuthStateChanged((user) => {
+    if (user) {
+      signInEl.style.display = "none";
+      appEl.style.display = "block";
+      startListening();
+    } else {
+      signInEl.style.display = "flex";
+      appEl.style.display = "none";
+      if (unsubscribeEvents) { unsubscribeEvents(); unsubscribeEvents = null; }
+    }
+  });
 
   const listEl = document.getElementById("list");
   const emptyEl = document.getElementById("emptyState");
   const connDot = document.getElementById("connDot");
   const connLabel = document.getElementById("connLabel");
   const businessFilter = document.getElementById("businessFilter");
+  const statRevenue = document.getElementById("statRevenue");
+  const statProfit = document.getElementById("statProfit");
+  const statCount = document.getElementById("statCount");
 
   const knownBusinesses = new Set();
   let currentFilter = "";
+  let latestDocs = [];
+
+  function formatMwk(amount) {
+    return "MK " + Math.round(amount).toLocaleString();
+  }
 
   function relativeTime(ms) {
     if (!ms) return "just now";
@@ -176,13 +288,41 @@
     return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   }
 
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function isToday(ms) {
+    if (!ms) return false;
+    const d = new Date(ms), now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  }
+
   function render(docs) {
-    listEl.innerHTML = "";
     const visible = docs.filter((d) => !currentFilter || d.businessName === currentFilter);
+
+    let revenue = 0, profit = 0, countToday = 0;
+    for (const d of visible) {
+      if (isToday(d.timestampMs)) {
+        countToday += 1;
+        if (typeof d.revenue === "number") revenue += d.revenue;
+        if (typeof d.profit === "number") profit += d.profit;
+      }
+    }
+    statRevenue.textContent = formatMwk(revenue);
+    statProfit.textContent = formatMwk(profit);
+    statCount.textContent = countToday;
+
+    listEl.innerHTML = "";
     emptyEl.style.display = visible.length ? "none" : "block";
     for (const d of visible) {
       const el = document.createElement("div");
-      el.className = "event";
+      el.className = "event" + (d.type === "sale" ? " sale" : "");
+      const moneyLine = typeof d.revenue === "number"
+        ? `<div class="money">${formatMwk(d.revenue)}${typeof d.profit === "number" ? " · profit " + formatMwk(d.profit) : ""}</div>`
+        : "";
       el.innerHTML = `
         <div class="badge">${initials(d.actorName)}</div>
         <div class="body">
@@ -192,16 +332,11 @@
           </div>
           <div class="item">${escapeHtml(d.itemName || "")}</div>
           <div class="detail">${escapeHtml(d.detail || "")}</div>
+          ${moneyLine}
         </div>
       `;
       listEl.appendChild(el);
     }
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
   }
 
   function updateBusinessOptions() {
@@ -221,36 +356,39 @@
     render(latestDocs);
   });
 
-  let latestDocs = [];
-
-  db.collection("stockEvents")
-    .orderBy("timestamp", "desc")
-    .limit(100)
-    .onSnapshot(
-      (snapshot) => {
-        connDot.classList.remove("offline");
-        connLabel.textContent = "Live";
-        latestDocs = snapshot.docs.map((doc) => {
-          const data = doc.data();
-          const businessName = data.businessName || "";
-          if (businessName) knownBusinesses.add(businessName);
-          return {
-            actorName: data.actorName,
-            businessName,
-            itemName: data.itemName,
-            detail: data.detail,
-            timestampMs: data.timestamp ? data.timestamp.toMillis() : null,
-          };
-        });
-        updateBusinessOptions();
-        render(latestDocs);
-      },
-      (err) => {
-        connDot.classList.add("offline");
-        connLabel.textContent = "Connection error — check console";
-        console.error(err);
-      },
-    );
+  function startListening() {
+    unsubscribeEvents = db.collection("businessEvents")
+      .orderBy("timestamp", "desc")
+      .limit(200)
+      .onSnapshot(
+        (snapshot) => {
+          connDot.classList.remove("offline");
+          connLabel.textContent = "Live";
+          latestDocs = snapshot.docs.map((doc) => {
+            const data = doc.data();
+            const businessName = data.businessName || "";
+            if (businessName) knownBusinesses.add(businessName);
+            return {
+              type: data.type,
+              actorName: data.actorName,
+              businessName,
+              itemName: data.itemName,
+              detail: data.detail,
+              revenue: data.revenue,
+              profit: data.profit,
+              timestampMs: data.timestamp ? data.timestamp.toMillis() : null,
+            };
+          });
+          updateBusinessOptions();
+          render(latestDocs);
+        },
+        (err) => {
+          connDot.classList.add("offline");
+          connLabel.textContent = "Connection error — check console";
+          console.error(err);
+        },
+      );
+  }
 </script>
 </body>
 </html>
