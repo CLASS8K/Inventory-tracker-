@@ -10,6 +10,7 @@ class InventoryRepository @Inject constructor(
     private val inventoryDao: InventoryDao,
     private val auditLogDao: AuditLogDao,
     private val lowStockNotifier: LowStockNotifier,
+    private val stockEventReporter: StockEventReporter,
 ) {
     val items: Flow<List<InventoryItem>> = inventoryDao.observeAll()
     val auditLog: Flow<List<AuditLogEntry>> = auditLogDao.observeAll()
@@ -115,6 +116,7 @@ class InventoryRepository @Inject constructor(
         }
         val entryId = logAction(item.name, "Stock Take", detail, actorName, profit = profit, revenue = revenue)
         if (!item.isLowStock && updated.isLowStock) lowStockNotifier.notifyLowStock(updated)
+        stockEventReporter.reportStockTake(item.name, detail, actorName)
         return entryId
     }
 

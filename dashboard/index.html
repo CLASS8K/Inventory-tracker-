@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nkhokwe — Live Activity</title>
+<style>
+  :root {
+    --terracotta: #B6502E;
+    --terracotta-light: #FFDBCB;
+    --ochre: #8A6A1A;
+    --ochre-light: #F5DFA6;
+    --millet: #3E6B33;
+    --ink: #21190F;
+    --ink-soft: #504539;
+    --line: #D5C4B4;
+    --bg: #FFFBF7;
+    --card: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Inter", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+    letter-spacing: -0.3px;
+  }
+  header .status {
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--millet);
+  }
+  .dot.offline { background: #C62828; }
+  .toolbar {
+    padding: 16px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  select, input[type=text] {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px 60px;
+  }
+  .empty {
+    text-align: center;
+    color: var(--ink-soft);
+    padding: 60px 20px;
+    font-size: 14px;
+  }
+  .event {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .event .badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--terracotta-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--terracotta);
+    flex-shrink: 0;
+  }
+  .event .body { flex: 1; min-width: 0; }
+  .event .top-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: baseline;
+  }
+  .event .actor { font-weight: 600; font-size: 14px; }
+  .event .actor .biz { font-weight: 400; color: var(--ink-soft); }
+  .event .time { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+  .event .item { font-size: 13px; color: var(--ochre); margin-top: 2px; font-weight: 600; }
+  .event .detail { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Nkhokwe — Live Activity</h1>
+  <div class="status"><span class="dot" id="connDot"></span><span id="connLabel">Connecting…</span></div>
+</header>
+<div class="toolbar">
+  <select id="businessFilter">
+    <option value="">All businesses</option>
+  </select>
+</div>
+<main>
+  <div id="list"></div>
+  <div class="empty" id="emptyState" style="display:none">No stock take activity yet.</div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  // Fill these in from Firebase Console → Project Settings → General → Your apps → Web app.
+  // These are the same public web-app identifiers Firebase expects to ship client-side; they
+  // are not secrets, but Firestore rules must exist (see dashboard/FIRESTORE_RULES.md) restricting
+  // what a client can write, the same way license/status/devices already is.
+  const firebaseConfig = {
+    apiKey: "REPLACE_ME",
+    authDomain: "nkhokwe-e683b.firebaseapp.com",
+    projectId: "nkhokwe-e683b",
+    storageBucket: "nkhokwe-e683b.appspot.com",
+    messagingSenderId: "REPLACE_ME",
+    appId: "REPLACE_ME",
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const listEl = document.getElementById("list");
+  const emptyEl = document.getElementById("emptyState");
+  const connDot = document.getElementById("connDot");
+  const connLabel = document.getElementById("connLabel");
+  const businessFilter = document.getElementById("businessFilter");
+
+  const knownBusinesses = new Set();
+  let currentFilter = "";
+
+  function relativeTime(ms) {
+    if (!ms) return "just now";
+    const diff = Date.now() - ms;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    const days = Math.floor(hrs / 24);
+    return days + "d ago";
+  }
+
+  function initials(name) {
+    if (!name) return "?";
+    return name.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  }
+
+  function render(docs) {
+    listEl.innerHTML = "";
+    const visible = docs.filter((d) => !currentFilter || d.businessName === currentFilter);
+    emptyEl.style.display = visible.length ? "none" : "block";
+    for (const d of visible) {
+      const el = document.createElement("div");
+      el.className = "event";
+      el.innerHTML = `
+        <div class="badge">${initials(d.actorName)}</div>
+        <div class="body">
+          <div class="top-line">
+            <div class="actor">${escapeHtml(d.actorName || "Unknown")} <span class="biz">· ${escapeHtml(d.businessName || "unnamed business")}</span></div>
+            <div class="time">${relativeTime(d.timestampMs)}</div>
+          </div>
+          <div class="item">${escapeHtml(d.itemName || "")}</div>
+          <div class="detail">${escapeHtml(d.detail || "")}</div>
+        </div>
+      `;
+      listEl.appendChild(el);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function updateBusinessOptions() {
+    const current = businessFilter.value;
+    businessFilter.innerHTML = '<option value="">All businesses</option>';
+    [...knownBusinesses].sort().forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      businessFilter.appendChild(opt);
+    });
+    businessFilter.value = current;
+  }
+
+  businessFilter.addEventListener("change", () => {
+    currentFilter = businessFilter.value;
+    render(latestDocs);
+  });
+
+  let latestDocs = [];
+
+  db.collection("stockEvents")
+    .orderBy("timestamp", "desc")
+    .limit(100)
+    .onSnapshot(
+      (snapshot) => {
+        connDot.classList.remove("offline");
+        connLabel.textContent = "Live";
+        latestDocs = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          const businessName = data.businessName || "";
+          if (businessName) knownBusinesses.add(businessName);
+          return {
+            actorName: data.actorName,
+            businessName,
+            itemName: data.itemName,
+            detail: data.detail,
+            timestampMs: data.timestamp ? data.timestamp.toMillis() : null,
+          };
+        });
+        updateBusinessOptions();
+        render(latestDocs);
+      },
+      (err) => {
+        connDot.classList.add("offline");
+        connLabel.textContent = "Connection error — check console";
+        console.error(err);
+      },
+    );
+</script>
+</body>
+</html>
