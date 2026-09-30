@@ -228,6 +228,13 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
 
+  // Admin logins see every business, not just one — must match the UID
+  // allowlist in the `businessEvents` read rule (dashboard/FIRESTORE_RULES.md).
+  const ADMIN_UIDS = new Set([
+    "vP1LliGDPTRnYkBWzrCtvpI1fUD2",
+    "eqvCMik8SeSygloQtBYnbCZrx5n2",
+  ]);
+
   const signInEl = document.getElementById("signIn");
   const appEl = document.getElementById("app");
   const emailEl = document.getElementById("email");
@@ -251,6 +258,12 @@
     if (user) {
       signInEl.style.display = "none";
       appEl.style.display = "none";
+      if (ADMIN_UIDS.has(user.uid)) {
+        businessLabel.textContent = "All businesses (admin)";
+        appEl.style.display = "block";
+        startListening(null);
+        return;
+      }
       db.collection("dashboardUsers").doc(user.uid).get()
         .then((snap) => {
           const businessNameNormalized = snap.exists ? snap.data().businessNameNormalized : null;
@@ -359,8 +372,13 @@
   }
 
   function startListening(businessNameNormalized) {
-    unsubscribeEvents = db.collection("businessEvents")
-      .where("businessNameNormalized", "==", businessNameNormalized)
+    // Admin logins (businessNameNormalized === null) query unfiltered — the
+    // Firestore rule grants them that read by UID, not by a matching field.
+    let query = db.collection("businessEvents");
+    if (businessNameNormalized !== null) {
+      query = query.where("businessNameNormalized", "==", businessNameNormalized);
+    }
+    unsubscribeEvents = query
       .orderBy("timestamp", "desc")
       .limit(200)
       .onSnapshot(

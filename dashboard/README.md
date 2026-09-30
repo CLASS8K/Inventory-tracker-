@@ -27,9 +27,10 @@ real time.
    the data is sign-in + the Firestore rules below.
 3. **Turn on Firebase Authentication** (Console → Authentication → Sign-in
    method → enable "Email/Password").
-4. **Add the Firestore rule** in `FIRESTORE_RULES.md`. Each login only sees
-   the one business its `dashboardUsers` doc names — see "Adding a client"
-   below.
+4. **Add the Firestore rule** in `FIRESTORE_RULES.md`. There are two kinds
+   of login: admin (a fixed UID allowlist in the rule — sees every
+   business) and client (scoped to the one business its `dashboardUsers`
+   doc names — see "Adding a client" below).
 5. **Go live** — the repo root already has `firebase.json`/`.firebaserc`
    pointing at this folder, so it's one command (needs
    [Node.js](https://nodejs.org) installed, one time):
@@ -46,26 +47,34 @@ real time.
    after signing in). Re-run just `firebase deploy --only hosting` any time
    `index.html` changes.
 
+## Admin logins (see every business)
+
+Two Authentication users (`vP1LliGDPTRnYkBWzrCtvpI1fUD2`,
+`eqvCMik8SeSygloQtBYnbCZrx5n2`) are hardcoded as admins directly in the
+Firestore rule and in `ADMIN_UIDS` in `index.html` — they read every
+business's events, unfiltered. They need **no** `dashboardUsers` doc.
+Adding a third admin means adding their UID to both places (rule +
+`ADMIN_UIDS`) and republishing/redeploying.
+
 ## Adding a client (one dashboard login per business)
 
 Each business gets its own login that can only ever see its own events —
-never another client's. Two things, both by hand in Firebase Console, no
-code change:
+never another client's, and never all businesses like an admin login.
+Two things, both by hand in Firebase Console, no code change:
 
 1. **Authentication → Users → Add user.** Email + password for that owner.
    Copy the new user's **UID**.
 2. **Firestore Database → Data → `dashboardUsers` collection → Add document.**
    Document ID = that UID. Fields:
    - `businessName` (string) — display name shown on the dashboard, e.g.
-     `Ventha`. Can be a placeholder (`Client 1`) until you know the real one.
+     `Ventha`. Leave blank (`""`) until the real client is onboarded — a
+     blank/missing value signs the login back out with a "not set up yet"
+     message rather than showing empty or fake data.
    - `businessNameNormalized` (string) — must exactly match what the app
      computes: the business name **trimmed and lowercased** (`.trim().lowercase()`
      in `ActivityReporter.kt`). This is what events are actually matched on,
      so it must match whatever name gets entered in-app at first admin
-     sign-in — update it once you know the real name.
-
-Right now there are 2 such logins/documents set up with placeholder names,
-ready to be pointed at real clients once they're onboarded.
+     sign-in.
 
 ## Known limitations
 
