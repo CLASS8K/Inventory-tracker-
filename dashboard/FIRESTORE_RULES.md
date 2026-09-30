@@ -8,11 +8,8 @@ scoped per business, not just gated behind any sign-in.
 
 ```
 match /dashboardUsers/{uid} {
-  // Maps a dashboard login (Firebase Auth uid) to the one business it may
-  // see. You create these by hand in Firestore, one per client owner — see
-  // dashboard/README.md. Nobody can read or write their own mapping from
-  // the client; only you, from the console.
-  allow read, write: if false;
+  allow read: if request.auth != null && request.auth.uid == uid;
+  allow write: if false;
 }
 
 match /businessEvents/{eventId} {
