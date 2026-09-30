@@ -30,11 +30,21 @@ real time.
 4. **Add the Firestore rule** in `FIRESTORE_RULES.md`. Each login only sees
    the one business its `dashboardUsers` doc names — see "Adding a client"
    below.
-5. Host `index.html` however you like:
-   - **Firebase Hosting** (`firebase deploy --only hosting`, free tier) is the
-     easiest way to get a stable link to bookmark.
-   - Or just open the file locally / drop it on any static host (GitHub Pages,
-     Netlify) — it has no server-side code, no build step.
+5. **Go live** — the repo root already has `firebase.json`/`.firebaserc`
+   pointing at this folder, so it's one command (needs
+   [Node.js](https://nodejs.org) installed, one time):
+   ```
+   npm install -g firebase-tools
+   firebase login
+   firebase deploy --only hosting
+   ```
+   `firebase login` opens a browser for you to sign in with the Google
+   account that owns the `nkhokwe-e683b` project — this step can't be done
+   for you, since it's your login, not a code change. The deploy prints a
+   URL like `https://nkhokwe-e683b.web.app` — that's the one link both
+   client logins share (each still only sees their own business's data
+   after signing in). Re-run just `firebase deploy --only hosting` any time
+   `index.html` changes.
 
 ## Adding a client (one dashboard login per business)
 
