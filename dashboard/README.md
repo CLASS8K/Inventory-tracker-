@@ -20,13 +20,11 @@ real time.
    (`</>`). Give it any nickname, e.g. "Nkhokwe Dashboard". You do **not** need
    Firebase Hosting for this step — just registering the app gets you a config
    object.
-2. Copy the `firebaseConfig` values it shows you (`apiKey`, `messagingSenderId`,
-   `appId`) into `index.html`'s `firebaseConfig` block, replacing the
-   `REPLACE_ME` placeholders. `authDomain`, `projectId`, `storageBucket` are
-   already filled in to match the existing project.
-   - These values are meant to ship in client-side code (every Firebase web app
-     works this way) — they are not secrets. What actually protects the data
-     is sign-in + the Firestore rules below.
+2. ~~Copy the `firebaseConfig` values~~ Already done — `index.html` has the
+   real `apiKey`/`messagingSenderId`/`appId` for the "Nkhokwe Dashboard" web
+   app. These values are meant to ship in client-side code (every Firebase
+   web app works this way) — they are not secrets. What actually protects
+   the data is sign-in + the Firestore rules below.
 3. **Turn on Firebase Authentication** (Console → Authentication → Sign-in
    method → enable "Email/Password"), then create at least one user
    (Authentication → Users → Add user) — that's the login you'll use on the
