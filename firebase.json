@@ -1,0 +1,11 @@
+{
+  "hosting": {
+    "public": "dashboard",
+    "ignore": [
+      "**/.*",
+      "**/node_modules/**",
+      "README.md",
+      "FIRESTORE_RULES.md"
+    ]
+  }
+}

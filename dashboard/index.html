@@ -80,6 +80,11 @@
     background: var(--card);
     color: var(--ink);
   }
+  .biz-label {
+    font-weight: 600;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
   .toolbar {
     padding: 16px 24px;
     display: flex;
@@ -187,9 +192,7 @@
     </div>
   </header>
   <div class="toolbar">
-    <select id="businessFilter">
-      <option value="">All businesses</option>
-    </select>
+    <div id="businessLabel" class="biz-label"></div>
   </div>
   <main>
     <div class="stats">
@@ -208,9 +211,10 @@
 <script>
   // Fill these in from Firebase Console → Project Settings → General → Your apps → Web app.
   // Not secrets — every Firebase web app ships these client-side. What protects the data is
-  // the Firestore rules (dashboard/FIRESTORE_RULES.md): only a signed-in user can read
-  // businessEvents, which is why this page also needs Firebase Authentication enabled with
-  // at least one email/password user created for the owner (Console → Authentication → Users).
+  // the Firestore rules (dashboard/FIRESTORE_RULES.md): a signed-in user can only read
+  // businessEvents for the one business their dashboardUsers/{uid} doc names (see README.md
+  // "Adding a client"), which is why every login needs both an Authentication user AND a
+  // dashboardUsers doc created for it (Console → Authentication → Users / Firestore Database).
   const firebaseConfig = {
     apiKey: "AIzaSyDEJSxhPeqzpput95l4rf8MCgCKQhckerE",
     authDomain: "nkhokwe-e683b.firebaseapp.com",
@@ -243,14 +247,31 @@
   let unsubscribeEvents = null;
 
   auth.onAuthStateChanged((user) => {
+    if (unsubscribeEvents) { unsubscribeEvents(); unsubscribeEvents = null; }
     if (user) {
       signInEl.style.display = "none";
-      appEl.style.display = "block";
-      startListening();
+      appEl.style.display = "none";
+      db.collection("dashboardUsers").doc(user.uid).get()
+        .then((snap) => {
+          const businessNameNormalized = snap.exists ? snap.data().businessNameNormalized : null;
+          if (!businessNameNormalized) {
+            signInError.textContent = "This login isn't set up for a business yet — ask Frank to add it.";
+            signInEl.style.display = "flex";
+            auth.signOut();
+            return;
+          }
+          businessLabel.textContent = snap.data().businessName || businessNameNormalized;
+          appEl.style.display = "block";
+          startListening(businessNameNormalized);
+        })
+        .catch((err) => {
+          signInError.textContent = err.message;
+          signInEl.style.display = "flex";
+          auth.signOut();
+        });
     } else {
       signInEl.style.display = "flex";
       appEl.style.display = "none";
-      if (unsubscribeEvents) { unsubscribeEvents(); unsubscribeEvents = null; }
     }
   });
 
@@ -258,13 +279,11 @@
   const emptyEl = document.getElementById("emptyState");
   const connDot = document.getElementById("connDot");
   const connLabel = document.getElementById("connLabel");
-  const businessFilter = document.getElementById("businessFilter");
+  const businessLabel = document.getElementById("businessLabel");
   const statRevenue = document.getElementById("statRevenue");
   const statProfit = document.getElementById("statProfit");
   const statCount = document.getElementById("statCount");
 
-  const knownBusinesses = new Set();
-  let currentFilter = "";
   let latestDocs = [];
 
   function formatMwk(amount) {
@@ -301,7 +320,7 @@
   }
 
   function render(docs) {
-    const visible = docs.filter((d) => !currentFilter || d.businessName === currentFilter);
+    const visible = docs;
 
     let revenue = 0, profit = 0, countToday = 0;
     for (const d of visible) {
@@ -339,25 +358,9 @@
     }
   }
 
-  function updateBusinessOptions() {
-    const current = businessFilter.value;
-    businessFilter.innerHTML = '<option value="">All businesses</option>';
-    [...knownBusinesses].sort().forEach((name) => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      businessFilter.appendChild(opt);
-    });
-    businessFilter.value = current;
-  }
-
-  businessFilter.addEventListener("change", () => {
-    currentFilter = businessFilter.value;
-    render(latestDocs);
-  });
-
-  function startListening() {
+  function startListening(businessNameNormalized) {
     unsubscribeEvents = db.collection("businessEvents")
+      .where("businessNameNormalized", "==", businessNameNormalized)
       .orderBy("timestamp", "desc")
       .limit(200)
       .onSnapshot(
@@ -366,12 +369,10 @@
           connLabel.textContent = "Live";
           latestDocs = snapshot.docs.map((doc) => {
             const data = doc.data();
-            const businessName = data.businessName || "";
-            if (businessName) knownBusinesses.add(businessName);
             return {
               type: data.type,
               actorName: data.actorName,
-              businessName,
+              businessName: data.businessName || "",
               itemName: data.itemName,
               detail: data.detail,
               revenue: data.revenue,
@@ -379,7 +380,6 @@
               timestampMs: data.timestamp ? data.timestamp.toMillis() : null,
             };
           });
-          updateBusinessOptions();
           render(latestDocs);
         },
         (err) => {
